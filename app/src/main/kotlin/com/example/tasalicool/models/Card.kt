@@ -39,7 +39,6 @@ data class Card(
     val rank: Rank
 ) : Serializable {
 
-    // الطرنيب ثابت HEARTS (يمكن تغييره لاحقاً بسهولة)
     fun isTrump(): Boolean = suit == Suit.HEARTS
 
     override fun toString(): String =
@@ -48,10 +47,8 @@ data class Card(
     fun getResourceName(): String =
         "${rank.displayName.lowercase()}_of_${suit.name.lowercase()}"
 
-    /* 🔥 مهم للـ AI والذاكرة */
-    fun strength(): Int {
-        return if (isTrump()) rank.value + 20 else rank.value
-    }
+    fun strength(): Int =
+        if (isTrump()) rank.value + 20 else rank.value
 }
 
 /* =====================================================
@@ -60,7 +57,7 @@ data class Card(
 
 data class Deck(
     val cards: MutableList<Card> = mutableListOf()
-) {
+) : Serializable {
 
     init {
         if (cards.isEmpty()) reset()
@@ -68,13 +65,11 @@ data class Deck(
 
     fun reset() {
         cards.clear()
-
         Suit.values().forEach { suit ->
             Rank.values().forEach { rank ->
                 cards.add(Card(suit, rank))
             }
         }
-
         shuffle()
     }
 
@@ -105,20 +100,15 @@ data class Deck(
 data class Player(
     val id: String,
     val name: String,
-
     val hand: MutableList<Card> = mutableListOf(),
 
     var score: Int = 0,
     var bid: Int = 0,
     var tricksWon: Int = 0,
-
     var teamId: Int = 0,
-
     val isLocal: Boolean = false
 
 ) : Serializable {
-
-    /* ===== إدارة الأوراق ===== */
 
     fun addCards(cards: List<Card>) {
         hand.addAll(cards)
@@ -132,17 +122,14 @@ data class Player(
         hand.clear()
     }
 
-    fun handSize(): Int =
-        hand.size
+    fun handSize(): Int = hand.size
 
     private fun sortHand() {
         hand.sortWith(
             compareBy<Card> { it.suit.ordinal }
-                .thenByDescending { it.strength() }   // 🔥 يستخدم قوة الورقة
+                .thenByDescending { it.strength() }
         )
     }
-
-    /* ===== إدارة الجولة ===== */
 
     fun resetForNewRound() {
         bid = 0
@@ -154,12 +141,9 @@ data class Player(
         tricksWon++
     }
 
-    /* ===== حساب النقاط ===== */
-
     fun applyRoundScore(): Int {
 
         val points = when {
-
             bid == 13 ->
                 if (tricksWon == 13) 400 else -52
 
@@ -178,12 +162,35 @@ data class Player(
 }
 
 /* =====================================================
-   نموذج حالة اللعبة
+   AI Difficulty
+   ===================================================== */
+
+enum class AIDifficulty {
+    EASY,
+    NORMAL,
+    HARD,
+    ELITE
+}
+
+/* =====================================================
+   Round History
+   ===================================================== */
+
+data class RoundResult(
+    val roundNumber: Int,
+    val teamScores: Map<Int, Int>
+) : Serializable
+
+/* =====================================================
+   Game State (Elite Stable Version)
    ===================================================== */
 
 data class GameState(
+
     val players: List<Player>,
+
     var currentPlayerIndex: Int = 0,
+
     val deck: Deck = Deck(),
 
     val currentTrick: MutableList<Pair<Player, Card>> = mutableListOf(),
@@ -191,7 +198,15 @@ data class GameState(
     var roundNumber: Int = 1,
 
     var gameInProgress: Boolean = true,
-    var winner: Player? = null
+
+    var winner: Player? = null,
+
+    var difficulty: AIDifficulty = AIDifficulty.NORMAL,
+
+    var playerRating: Int = 1200,
+
+    val matchHistory: MutableList<RoundResult> = mutableListOf()
+
 ) : Serializable {
 
     fun getCurrentPlayer(): Player =
@@ -202,9 +217,56 @@ data class GameState(
             (currentPlayerIndex + 1) % players.size
     }
 
-    /* 🔥 مهم جداً للـ AI */
     fun totalTricksPlayed(): Int =
         players.sumOf { it.tricksWon }
+
+    /* ================= Validation ================= */
+
+    fun isStateValid(): Boolean {
+
+        if (players.size != 4) return false
+        if (currentPlayerIndex !in players.indices) return false
+
+        val allCards =
+            players.flatMap { it.hand } +
+                    deck.cards +
+                    currentTrick.map { it.second }
+
+        if (allCards.distinct().size != allCards.size)
+            return false
+
+        return true
+    }
+
+    /* ================= Match History ================= */
+
+    fun recordRoundResult() {
+
+        val teamScores =
+            players.groupBy { it.teamId }
+                .mapValues { entry ->
+                    entry.value.sumOf { it.score }
+                }
+
+        matchHistory.add(
+            RoundResult(roundNumber, teamScores)
+        )
+
+        roundNumber++
+    }
+
+    /* ================= Rating System ================= */
+
+    fun updateRating(playerWon: Boolean) {
+
+        val change =
+            if (playerWon) 25 else -20
+
+        playerRating += change
+
+        if (playerRating < 800)
+            playerRating = 800
+    }
 }
 
 /* =====================================================
