@@ -1,4 +1,4 @@
-package com.example.cardgames.ui.components
+package com.example.tasalicool.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,9 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.cardgames.models.Card
-import com.example.cardgames.models.Rank
-import com.example.cardgames.models.Suit
+import com.example.tasalicool.models.Card
+import com.example.tasalicool.models.Rank
+import com.example.tasalicool.models.Suit
 
 @Composable
 fun CardView(
