@@ -10,7 +10,7 @@ data class GameState(
     val deck: Deck = Deck(),
     val currentTrick: MutableList<Pair<String, Card>> = mutableListOf(),
     var roundNumber: Int = 1,
-    var gameInProgress: Boolean = true,
+    var gameInProgress: Boolean = false,
     var winnerId: String? = null
 
 ) : Serializable {
@@ -31,24 +31,46 @@ data class GameState(
     }
 
     /* ===================================================== */
-    /* ================= ROUND CONTROL ===================== */
+    /* ================= START GAME (HOST ONLY) ============ */
     /* ===================================================== */
-
-    fun isRoundFinished(): Boolean {
-        if (players.isEmpty()) return true
-        return players.all { it.hand.isEmpty() }
-    }
 
     /**
      * يستخدم فقط من الـ HOST
-     * يرجع JSON جاهز للإرسال
+     * يبدأ اللعبة ويعيد JSON جاهز للإرسال
      */
-    fun startNewRoundAndCreateNetworkPayload(
+    fun startGameAndCreatePayload(cardsPerPlayer: Int = 5): String {
+
+        if (players.isEmpty()) return ""
+
+        roundNumber = 1
+        currentPlayerIndex = 0
+        winnerId = null
+        gameInProgress = true
+
+        deck.reset()
+        deck.shuffle()
+
+        players.forEach {
+            it.score = 0
+            it.resetForNewRound()
+        }
+
+        dealCards(cardsPerPlayer)
+
+        return createNetworkPayload()
+    }
+
+    /* ===================================================== */
+    /* ================= NEW ROUND (HOST) ================== */
+    /* ===================================================== */
+
+    fun startNewRoundAndCreatePayload(
         cardsPerPlayer: Int = 5
     ): String {
 
         roundNumber++
         currentTrick.clear()
+
         deck.reset()
         deck.shuffle()
 
@@ -58,15 +80,14 @@ data class GameState(
 
         currentPlayerIndex = 0
 
-        val safeState = toNetworkSafeCopy()
-        return gson.toJson(safeState)
+        return createNetworkPayload()
     }
 
     /* ===================================================== */
     /* ================= PLAY CARD (HOST) ================== */
     /* ===================================================== */
 
-    fun playCardAndCreateNetworkPayload(
+    fun playCardAndCreatePayload(
         playerId: String,
         card: Card
     ): String? {
@@ -87,12 +108,11 @@ data class GameState(
             nextPlayer()
         }
 
-        val safeState = toNetworkSafeCopy()
-        return gson.toJson(safeState)
+        return createNetworkPayload()
     }
 
     /* ===================================================== */
-    /* ================= APPLY NETWORK STATE =============== */
+    /* ================= APPLY FULL STATE (CLIENT) ========= */
     /* ===================================================== */
 
     /**
@@ -111,9 +131,17 @@ data class GameState(
         currentTrick.clear()
         currentTrick.addAll(networkState.currentTrick)
 
+        // تحديث اللاعبين
         networkState.players.forEach { netPlayer ->
-            players.find { it.id == netPlayer.id }
-                ?.updateFromNetwork(netPlayer)
+
+            val localPlayer =
+                players.find { it.id == netPlayer.id }
+
+            if (localPlayer != null) {
+                localPlayer.updateFromNetwork(netPlayer)
+            } else {
+                players.add(netPlayer)
+            }
         }
     }
 
@@ -171,6 +199,15 @@ data class GameState(
     }
 
     /* ===================================================== */
+    /* ================= ROUND STATUS ====================== */
+    /* ===================================================== */
+
+    fun isRoundFinished(): Boolean {
+        if (players.isEmpty()) return true
+        return players.all { it.hand.isEmpty() }
+    }
+
+    /* ===================================================== */
     /* ================= TEAM SCORES ======================= */
     /* ===================================================== */
 
@@ -205,18 +242,25 @@ data class GameState(
         currentPlayerIndex = 0
         roundNumber = 1
         winnerId = null
-        gameInProgress = true
+        gameInProgress = false
         currentTrick.clear()
         deck.reset()
     }
 
     /* ===================================================== */
-    /* ================= NETWORK SAFE COPY ================= */
+    /* ================= NETWORK PAYLOAD =================== */
     /* ===================================================== */
 
     /**
-     * نسخة بدون Deck
-     * Host فقط هو الذي يحتفظ بالـ deck الحقيقي
+     * ينشئ نسخة آمنة للشبكة (بدون Deck)
+     */
+    private fun createNetworkPayload(): String {
+        val safeState = toNetworkSafeCopy()
+        return gson.toJson(safeState)
+    }
+
+    /**
+     * Host فقط يحتفظ بالـ deck الحقيقي
      */
     fun toNetworkSafeCopy(): GameState {
 
