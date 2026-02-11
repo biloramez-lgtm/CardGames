@@ -29,18 +29,19 @@ fun Game400Screen(navController: NavHostController) {
         Game400Engine(
             context = context,
             players = listOf(
-                Player("p1", "أنت", teamId = 0, isLocal = true),
-                Player("p2", "يسار", teamId = 1),
-                Player("p3", "شريكك", teamId = 0),
-                Player("p4", "يمين", teamId = 1)
+                Player("p1", "أنت", 0, true),
+                Player("p2", "يسار", 1),
+                Player("p3", "شريكك", 0),
+                Player("p4", "يمين", 1)
             )
         )
     }
 
     var selectedCard by remember { mutableStateOf<Card?>(null) }
     var uiTrigger by remember { mutableStateOf(0) }
+    var showRoundDialog by remember { mutableStateOf(false) }
 
-    /* ================= START ROUND ================= */
+    /* ================= START ================= */
 
     LaunchedEffect(Unit) {
         engine.startNewRound()
@@ -48,16 +49,18 @@ fun Game400Screen(navController: NavHostController) {
     }
 
     /* ================= AI DRIVER ================= */
-    /* يشغل الذكاء فقط عندما يتغير الدور */
 
     LaunchedEffect(engine.currentPlayerIndex, uiTrigger) {
-
         if (engine.roundActive &&
             !engine.getCurrentPlayer().isLocal
         ) {
             delay(600)
             engine.playAITurnIfNeeded()
             uiTrigger++
+        }
+
+        if (!engine.roundActive && !engine.isGameOver()) {
+            showRoundDialog = true
         }
     }
 
@@ -66,14 +69,69 @@ fun Game400Screen(navController: NavHostController) {
     val topPlayer = engine.players[2]
     val rightPlayer = engine.players[3]
 
+    /* ================= ROUND RESULT DIALOG ================= */
+
+    if (showRoundDialog) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {
+                Button(onClick = {
+                    showRoundDialog = false
+                    engine.startNewRound()
+                    uiTrigger++
+                }) {
+                    Text("جولة جديدة")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    navController.popBackStack()
+                }) {
+                    Text("العودة للرئيسية")
+                }
+            },
+            title = {
+                Text("انتهت الجولة")
+            },
+            text = {
+                Column {
+                    engine.players.forEach {
+                        Text("${it.name} : ${it.score}")
+                    }
+                }
+            }
+        )
+    }
+
+    /* ================= GAME OVER ================= */
+
+    if (engine.isGameOver()) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {
+                Button(onClick = {
+                    navController.popBackStack()
+                }) {
+                    Text("إنهاء اللعبة")
+                }
+            },
+            title = {
+                Text("🏆 انتهت اللعبة")
+            },
+            text = {
+                Text("الفائز: ${engine.gameWinner?.name}")
+            }
+        )
+    }
+
+    /* ================= UI ================= */
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0E3B2E))
             .padding(12.dp)
     ) {
-
-        /* ================= HEADER ================= */
 
         Row(verticalAlignment = Alignment.CenterVertically) {
 
@@ -97,20 +155,18 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        /* ================= TOP PLAYER ================= */
-
         PlayerSideInfo(topPlayer, engine)
 
         Spacer(modifier = Modifier.height(8.dp))
-
-        /* ================= TABLE CENTER ================= */
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement =
+            Arrangement.SpaceBetween,
+            verticalAlignment =
+            Alignment.CenterVertically
         ) {
 
             PlayerVerticalInfo(leftPlayer, engine)
@@ -132,8 +188,6 @@ fun Game400Screen(navController: NavHostController) {
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-
-        /* ================= LOCAL PLAYER ================= */
 
         PlayerSideInfo(localPlayer, engine)
 
@@ -172,74 +226,6 @@ fun Game400Screen(navController: NavHostController) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("لعب الورقة")
-        }
-    }
-}
-
-/* ================= PLAYER UI COMPONENTS ================= */
-
-@Composable
-fun PlayerSideInfo(player: Player, engine: Game400Engine) {
-
-    val isCurrent = player == engine.getCurrentPlayer()
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor =
-            if (isCurrent)
-                Color(0xFF1B5E20)
-            else
-                Color(0xFF1F4D3A)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            horizontalArrangement =
-            Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(player.name, color = Color.White)
-                Text(
-                    "طلب ${player.bid} | أكلات ${player.tricksWon}",
-                    color = Color.LightGray
-                )
-            }
-
-            Text(
-                "${player.score}",
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-fun PlayerVerticalInfo(player: Player, engine: Game400Engine) {
-
-    val isCurrent = player == engine.getCurrentPlayer()
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor =
-            if (isCurrent)
-                Color(0xFF1B5E20)
-            else
-                Color(0xFF1F4D3A)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment =
-            Alignment.CenterHorizontally
-        ) {
-            Text(player.name, color = Color.White)
-            Text(
-                "${player.tricksWon}",
-                color = Color.White
-            )
         }
     }
 }
