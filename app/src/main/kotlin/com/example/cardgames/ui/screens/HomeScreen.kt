@@ -1,4 +1,4 @@
-package com.example.cardgames.ui.screens
+package com.example.tasalicool.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,7 +31,7 @@ fun HomeScreen(navController: NavHostController) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "🃏 Card Games",
+            text = "🃏 tasalicool",
             style = MaterialTheme.typography.displayMedium,
             color = MaterialTheme.colorScheme.primary
         )
