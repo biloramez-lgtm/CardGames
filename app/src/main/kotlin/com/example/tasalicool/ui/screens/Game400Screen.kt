@@ -21,23 +21,22 @@ import com.example.tasalicool.ui.components.CompactCardView
 @Composable
 fun Game400Screen(navController: NavHostController) {
 
-    val gameRound = remember {
-        Game400Round(
-            players = listOf(
-                Player("p1", "أنت"),
-                Player("p2", "اللاعب 2")
+    var gameRound by remember {
+        mutableStateOf(
+            Game400Round(
+                players = listOf(
+                    Player("p1", "أنت"),
+                    Player("p2", "اللاعب 2")
+                )
             )
         )
     }
 
     var selectedCard by remember { mutableStateOf<Card?>(null) }
 
-    // 🔥 متغير لإجبار إعادة الرسم
-    var refresh by remember { mutableStateOf(0) }
-
     LaunchedEffect(Unit) {
         gameRound.initialize()
-        refresh++
+        gameRound = gameRound.copy() // 🔥 يجبر إعادة الرسم مرة واحدة
     }
 
     Column(
@@ -89,7 +88,7 @@ fun Game400Screen(navController: NavHostController) {
                 CardBackView(
                     onClick = {
                         gameRound.drawFromDeck(gameRound.getCurrentPlayer())
-                        refresh++
+                        gameRound = gameRound.copy() // 🔥 تحديث UI
                     }
                 )
                 Text(text = "${gameRound.deck.size()}")
@@ -135,7 +134,7 @@ fun Game400Screen(navController: NavHostController) {
                         if (gameRound.canPlay(it)) {
                             gameRound.playCard(it)
                             selectedCard = null
-                            refresh++
+                            gameRound = gameRound.copy() // 🔥 تحديث UI
                         }
                     }
                 },
@@ -148,7 +147,7 @@ fun Game400Screen(navController: NavHostController) {
             Button(
                 onClick = {
                     gameRound.drawFromDeck(gameRound.getCurrentPlayer())
-                    refresh++
+                    gameRound = gameRound.copy() // 🔥 تحديث UI
                 },
                 modifier = Modifier.weight(1f)
             ) {
