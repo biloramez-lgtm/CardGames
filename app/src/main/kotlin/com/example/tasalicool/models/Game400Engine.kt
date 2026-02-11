@@ -2,6 +2,7 @@ package com.example.tasalicool.models
 
 import java.io.Serializable
 import kotlin.math.max
+import kotlin.math.min
 
 object Game400Constants {
     const val CARDS_PER_PLAYER = 13
@@ -36,7 +37,7 @@ class Game400Engine(
             it.addCards(deck.drawCards(Game400Constants.CARDS_PER_PLAYER))
         }
 
-        calculateAIBids()
+        calculateAdvancedAIBids()
 
         trickNumber = 0
         currentPlayerIndex = 0
@@ -55,30 +56,38 @@ class Game400Engine(
     }
 
     /* =====================================================
-       🤖 حساب Bid للذكاء الصناعي
+       🤖 Bid احترافي
        ===================================================== */
 
-    private fun calculateAIBids() {
+    private fun calculateAdvancedAIBids() {
         players.forEach { player ->
             if (!player.isLocal) {
-                player.bid = calculateSmartBid(player)
+                player.bid = calculateProfessionalBid(player)
             }
         }
     }
 
-    private fun calculateSmartBid(player: Player): Int {
+    private fun calculateProfessionalBid(player: Player): Int {
 
-        var strength = 0
+        var score = 0.0
 
-        player.hand.forEach { card ->
-            if (card.suit == Game400Constants.TRUMP_SUIT)
-                strength += 2
+        val trumpCount = player.hand.count { it.suit == Game400Constants.TRUMP_SUIT }
+        val highCards = player.hand.count { it.rank.value >= 11 }
 
-            if (card.rank.value >= 11)
-                strength += 1
+        score += trumpCount * 2.8
+        score += highCards * 1.4
+
+        player.hand.forEach {
+            if (it.suit == Game400Constants.TRUMP_SUIT && it.rank == Rank.ACE)
+                score += 2
         }
 
-        return max(1, strength / 3)
+        var bid = (score / 3).toInt()
+
+        bid = max(2, bid)
+        bid = min(13, bid)
+
+        return bid
     }
 
     /* =====================================================
@@ -114,7 +123,7 @@ class Game400Engine(
     }
 
     /* =====================================================
-       🤖 AI يلعب تلقائياً
+       🤖 AI احترافي جداً
        ===================================================== */
 
     fun playAITurnIfNeeded() {
@@ -123,37 +132,69 @@ class Game400Engine(
 
         if (!current.isLocal && roundActive) {
 
-            val card = chooseBestCard(current)
+            val card = chooseProfessionalCard(current)
             playCard(current, card)
 
-            // إذا التالي AI كمان
             playAITurnIfNeeded()
         }
     }
 
-    private fun chooseBestCard(player: Player): Card {
-
-        val leadSuit = currentTrick.firstOrNull()?.second?.suit
+    private fun chooseProfessionalCard(player: Player): Card {
 
         val validCards = player.hand.filter { isValidPlay(player, it) }
 
+        val leadSuit = currentTrick.firstOrNull()?.second?.suit
+
+        // 🎯 إذا يبدأ الأكلة
         if (leadSuit == null) {
-            // يبدأ الأكلة → يرمي أقوى ورقة
-            return validCards.maxBy { it.rank.value }
+
+            // إذا فريقه محتاج أكلات → يهاجم
+            if (player.tricksWon < player.bid) {
+                return validCards.maxBy { it.rank.value }
+            }
+
+            // إذا غطى طلبه → يلعب ورقة متوسطة
+            return validCards.sortedBy { it.rank.value }[validCards.size / 2]
         }
 
         val sameSuit = validCards.filter { it.suit == leadSuit }
 
         if (sameSuit.isNotEmpty()) {
-            return sameSuit.maxBy { it.rank.value }
+
+            val highestOnTable = currentTrick
+                .filter { it.second.suit == leadSuit }
+                .maxBy { it.second.rank.value }
+                .second
+
+            val winningCard = sameSuit
+                .filter { it.rank.value > highestOnTable.rank.value }
+                .minByOrNull { it.rank.value }
+
+            return winningCard ?: sameSuit.minBy { it.rank.value }
         }
 
+        // ما عنده نفس النوع → يفحص طرنيب
         val trumps = validCards.filter { it.suit == Game400Constants.TRUMP_SUIT }
 
         if (trumps.isNotEmpty()) {
-            return trumps.maxBy { it.rank.value }
+
+            val highestTrump = currentTrick
+                .filter { it.second.suit == Game400Constants.TRUMP_SUIT }
+                .maxByOrNull { it.second.rank.value }
+                ?.second
+
+            if (highestTrump == null) {
+                return trumps.minBy { it.rank.value }
+            }
+
+            val winningTrump = trumps
+                .filter { it.rank.value > highestTrump.rank.value }
+                .minByOrNull { it.rank.value }
+
+            return winningTrump ?: validCards.minBy { it.rank.value }
         }
 
+        // ما عنده شيء → يرمي أضعف ورقة
         return validCards.minBy { it.rank.value }
     }
 
