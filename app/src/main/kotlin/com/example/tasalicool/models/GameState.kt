@@ -22,38 +22,46 @@ data class GameState(
 
     /* ================= CURRENT PLAYER ================= */
 
-    fun getCurrentPlayer(): Player? {
-        return if (players.isNotEmpty())
+    fun getCurrentPlayer(): Player? =
+        if (players.isNotEmpty())
             players[currentPlayerIndex]
-        else
-            null
-    }
+        else null
 
     fun nextPlayer() {
         if (players.isEmpty()) return
-
         currentPlayerIndex =
             (currentPlayerIndex + 1) % players.size
     }
 
-    /* ================= ROUND LOGIC ================= */
+    /* ================= ROUND CONTROL ================= */
 
     fun isRoundFinished(): Boolean {
         if (players.isEmpty()) return true
         return players.all { it.hand.isEmpty() }
     }
 
-    fun startNewRound() {
+    fun startNewRound(cardsPerPlayer: Int = 5) {
+
         roundNumber++
         currentTrick.clear()
         deck.reset()
-        dealCards()
+
+        players.forEach { it.resetForNewRound() }
+
+        dealCards(cardsPerPlayer)
+
+        currentPlayerIndex = 0
     }
 
-    /* ================= CARD LOGIC ================= */
+    /* ================= PLAY CARD ================= */
 
     fun playCard(player: Player, card: Card) {
-        player.hand.remove(card)
+
+        if (player != getCurrentPlayer()) return
+        if (!player.hand.contains(card)) return
+
+        player.removeCard(card)
+
         currentTrick.add(player to card)
 
         if (currentTrick.size == players.size) {
@@ -63,21 +71,43 @@ data class GameState(
         }
     }
 
-    private fun evaluateTrick() {
-        // 🔥 هنا يمكنك وضع منطق تحديد الفائز في الجولة
-        val winningPair = currentTrick.maxByOrNull { it.second.value }
+    /* ================= TRICK EVALUATION ================= */
 
-        winningPair?.let { pair ->
-            pair.first.score += 1
-            currentPlayerIndex = players.indexOf(pair.first)
+    private fun evaluateTrick() {
+
+        // استخدام strength وليس value
+        val winningPair =
+            currentTrick.maxByOrNull { it.second.strength() }
+
+        winningPair?.first?.incrementTrick()
+
+        // اللاعب الفائز يبدأ الجولة التالية
+        winningPair?.first?.let {
+            currentPlayerIndex = players.indexOf(it)
         }
 
         currentTrick.clear()
+
+        if (isRoundFinished()) {
+            finishRound()
+        }
+    }
+
+    /* ================= ROUND FINISH ================= */
+
+    private fun finishRound() {
+
+        players.forEach {
+            it.applyRoundScore()
+        }
+
+        checkGameWinner()
     }
 
     /* ================= DEAL CARDS ================= */
 
     fun dealCards(cardsPerPlayer: Int = 5) {
+
         players.forEach { player ->
             repeat(cardsPerPlayer) {
                 deck.drawCard()?.let { card ->
@@ -90,6 +120,7 @@ data class GameState(
     /* ================= TEAM SCORES ================= */
 
     fun getTeamScores(): Map<Int, Int> {
+
         return players
             .groupBy { it.teamId }
             .mapValues { entry ->
@@ -99,7 +130,8 @@ data class GameState(
 
     /* ================= GAME END ================= */
 
-    fun checkGameWinner(maxScore: Int = 10) {
+    fun checkGameWinner(maxScore: Int = 400) {
+
         players.find { it.score >= maxScore }?.let {
             winner = it
             gameInProgress = false
@@ -107,9 +139,10 @@ data class GameState(
     }
 
     fun resetGame() {
+
         players.forEach {
             it.score = 0
-            it.hand.clear()
+            it.resetForNewRound()
         }
 
         currentPlayerIndex = 0
