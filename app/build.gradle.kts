@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.gamestools"
+    namespace = "com.example.tasalicool"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.gamestools"
+        applicationId = "com.example.tasalicool"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
