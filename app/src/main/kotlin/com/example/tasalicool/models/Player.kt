@@ -34,6 +34,10 @@ data class Player(
         return hand.remove(card)
     }
 
+    fun clearHand() {
+        hand.clear()
+    }
+
     fun resetForNewRound() {
         bid = 0
         tricksWon = 0
@@ -104,11 +108,25 @@ data class Player(
         rating = max(800, min(3000, rating))
     }
 
-    /* ================= NETWORK SYNC HELPER ================= */
+    /* ================= NETWORK SAFE COPY ================= */
 
+    /**
+     * نسخة آمنة للشبكة (لا تحتوي على أوراق)
+     */
     fun toNetworkSafeCopy(): Player {
         return copy(
-            hand = mutableListOf() // لا نرسل أوراق اللاعب للشبكة
+            hand = mutableListOf()
         )
+    }
+
+    /**
+     * تحديث بيانات اللاعب من نسخة شبكة
+     */
+    fun updateFromNetwork(networkPlayer: Player) {
+        score = networkPlayer.score
+        bid = networkPlayer.bid
+        tricksWon = networkPlayer.tricksWon
+        teamId = networkPlayer.teamId
+        rating = networkPlayer.rating
     }
 }
