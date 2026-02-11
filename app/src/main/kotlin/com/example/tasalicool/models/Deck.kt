@@ -1,35 +1,62 @@
 package com.example.tasalicool.models
 
 import java.io.Serializable
+import kotlin.random.Random
 
 data class Deck(
     val cards: MutableList<Card> = mutableListOf()
 ) : Serializable {
 
     init {
-        if (cards.isEmpty()) reset()
+        if (cards.isEmpty()) {
+            reset()
+        }
     }
+
+    /* ================= RESET ================= */
 
     fun reset() {
         cards.clear()
-        Suit.values().forEach { suit ->
-            Rank.values().forEach { rank ->
+
+        for (suit in Suit.values()) {
+            for (rank in Rank.values()) {
                 cards.add(Card(suit, rank))
             }
         }
+
         shuffle()
     }
 
-    fun shuffle() = cards.shuffle()
+    /* ================= SHUFFLE ================= */
 
-    fun drawCard(): Card? =
-        if (cards.isNotEmpty()) cards.removeAt(0) else null
+    fun shuffle() {
+        cards.shuffle(Random(System.currentTimeMillis()))
+    }
+
+    /* ================= DRAW ================= */
+
+    fun drawCard(): Card? {
+        return if (cards.isNotEmpty()) {
+            cards.removeAt(0)
+        } else {
+            null
+        }
+    }
 
     fun drawCards(count: Int): List<Card> {
-        val drawn = mutableListOf<Card>()
-        repeat(count) {
-            drawCard()?.let { drawn.add(it) }
+        val safeCount = count.coerceAtMost(cards.size)
+        val drawnCards = mutableListOf<Card>()
+
+        repeat(safeCount) {
+            drawCard()?.let { drawnCards.add(it) }
         }
-        return drawn
+
+        return drawnCards
     }
+
+    /* ================= INFO ================= */
+
+    fun remainingCards(): Int = cards.size
+
+    fun isEmpty(): Boolean = cards.isEmpty()
 }
