@@ -1,6 +1,8 @@
 package com.example.tasalicool.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -8,8 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.tasalicool.network.NetworkGameServer
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
@@ -17,12 +17,11 @@ import java.net.NetworkInterface
 fun HostGameScreen(navController: NavHostController) {
 
     var serverStarted by remember { mutableStateOf(false) }
-    var connectedPlayers by remember { mutableStateOf(listOf<String>()) }
+    var connectedPlayers by remember { mutableStateOf(mutableListOf<String>()) }
     var statusText by remember { mutableStateOf("السيرفر غير مشغل") }
 
     val server = remember { NetworkGameServer(5000) }
 
-    /* 🔥 إيقاف السيرفر عند الخروج من الشاشة */
     DisposableEffect(Unit) {
         onDispose {
             server.stopServer()
@@ -32,6 +31,7 @@ fun HostGameScreen(navController: NavHostController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -51,7 +51,7 @@ fun HostGameScreen(navController: NavHostController) {
         )
 
         Text(
-            text = getLocalIpAddress() ?: "غير متصل بالشبكة",
+            text = getWifiIpAddress() ?: "غير متصل بالشبكة",
             style = MaterialTheme.typography.bodyLarge
         )
 
@@ -63,25 +63,53 @@ fun HostGameScreen(navController: NavHostController) {
 
         Button(
             onClick = {
+
                 if (!serverStarted) {
 
                     server.startServer(
                         onClientConnected = { playerId ->
-                            connectedPlayers = connectedPlayers + playerId
+                            connectedPlayers =
+                                (connectedPlayers + playerId).toMutableList()
                             statusText = "لاعب متصل: $playerId"
                         },
                         onMessageReceived = { message ->
-                            statusText = "تم استلام رسالة: ${message.action}"
+                            statusText =
+                                "تم استلام رسالة: ${message.action}"
                         }
                     )
 
                     serverStarted = true
                     statusText = "السيرفر يعمل على المنفذ 5000"
                 }
+
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (serverStarted) "السيرفر يعمل..." else "تشغيل السيرفر")
+            Text(
+                if (serverStarted)
+                    "السيرفر يعمل..."
+                else
+                    "تشغيل السيرفر"
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (serverStarted) {
+            Button(
+                onClick = {
+                    server.stopServer()
+                    connectedPlayers.clear()
+                    serverStarted = false
+                    statusText = "تم إيقاف السيرفر"
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("إيقاف السيرفر")
+            }
         }
 
         Spacer(modifier = Modifier.height(30.dp))
@@ -97,9 +125,7 @@ fun HostGameScreen(navController: NavHostController) {
         Spacer(modifier = Modifier.height(40.dp))
 
         Button(
-            onClick = {
-                navController.popBackStack()
-            },
+            onClick = { navController.popBackStack() },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("رجوع")
@@ -108,22 +134,22 @@ fun HostGameScreen(navController: NavHostController) {
 }
 
 /* ============================= */
-/* 🔥 الحصول على IP الجهاز */
+/* الحصول على IP WiFi الصحيح */
 /* ============================= */
 
-fun getLocalIpAddress(): String? {
+fun getWifiIpAddress(): String? {
     return try {
-        val interfaces = NetworkInterface.getNetworkInterfaces()
-        for (intf in interfaces) {
-            val addresses = intf.inetAddresses
-            for (addr in addresses) {
-                if (!addr.isLoopbackAddress && addr is Inet4Address) {
-                    return addr.hostAddress
+        NetworkInterface.getNetworkInterfaces().toList().forEach { intf ->
+            if (intf.name.contains("wlan", true)) {
+                intf.inetAddresses.toList().forEach { addr ->
+                    if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                        return addr.hostAddress
+                    }
                 }
             }
         }
         null
-    } catch (ex: Exception) {
+    } catch (e: Exception) {
         null
     }
 }
