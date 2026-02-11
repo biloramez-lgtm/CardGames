@@ -1,44 +1,26 @@
 package com.example.tasalicool.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.tasalicool.models.Card
-import com.example.tasalicool.models.Deck
 import com.example.tasalicool.models.Game400Round
-import com.example.tasalicool.models.GameType
 import com.example.tasalicool.models.Player
-import com.example.tasalicool.ui.components.CardView
 import com.example.tasalicool.ui.components.CardBackView
+import com.example.tasalicool.ui.components.CardView
 import com.example.tasalicool.ui.components.CompactCardView
 
 @Composable
 fun Game400Screen(navController: NavHostController) {
+
     var gameRound by remember {
         mutableStateOf(
             Game400Round(
@@ -49,23 +31,29 @@ fun Game400Screen(navController: NavHostController) {
             )
         )
     }
+
     var selectedCard by remember { mutableStateOf<Card?>(null) }
 
-    gameRound.initialize()
+    // 🔥 تهيئة مرة واحدة فقط
+    LaunchedEffect(Unit) {
+        gameRound.initialize()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
+
         // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
             }
+
             Text(
                 text = "🎴 لعبة 400",
                 style = MaterialTheme.typography.headlineSmall,
@@ -85,7 +73,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // أوراق اللعب
+        // الطاولة
         Text(
             text = "أوراق على الطاولة",
             style = MaterialTheme.typography.titleMedium
@@ -95,23 +83,19 @@ fun Game400Screen(navController: NavHostController) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // الدك المتبقي
+
             if (gameRound.deck.size() > 0) {
                 CardBackView(
                     onClick = {
-                        val card = gameRound.deck.drawCard()
-                        card?.let { gameRound.getCurrentPlayer().addCards(listOf(it)) }
+                        gameRound.drawFromDeck(gameRound.getCurrentPlayer())
                     }
                 )
                 Text(text = "${gameRound.deck.size()}")
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // أوراق الرمي
             if (gameRound.discardPile.isNotEmpty()) {
                 CardView(card = gameRound.discardPile.last())
             }
@@ -119,7 +103,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // يد اللاعب الحالي
+        // يد اللاعب
         Text(
             text = "أوراقك",
             style = MaterialTheme.typography.titleMedium
@@ -145,13 +129,14 @@ fun Game400Screen(navController: NavHostController) {
         // أزرار الحركة
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
             Button(
                 onClick = {
-                    if (selectedCard != null) {
-                        if (gameRound.canPlay(selectedCard!!)) {
-                            gameRound.playCard(selectedCard!!)
+                    selectedCard?.let {
+                        if (gameRound.canPlay(it)) {
+                            gameRound.playCard(it)
                             selectedCard = null
                         }
                     }
@@ -176,18 +161,22 @@ fun Game400Screen(navController: NavHostController) {
 
 @Composable
 fun PlayerInfoCard(player: Player, isCurrentPlayer: Boolean) {
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(4.dp)
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             Column {
                 Text(
                     text = if (isCurrentPlayer) "▶ ${player.name}" else player.name,
@@ -198,9 +187,10 @@ fun PlayerInfoCard(player: Player, isCurrentPlayer: Boolean) {
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
             Text(
                 text = "${player.score} نقطة",
-                style = MaterialTheme.typography.headlineSmall
+                style = MaterialTheme.typography.titleLarge
             )
         }
     }
