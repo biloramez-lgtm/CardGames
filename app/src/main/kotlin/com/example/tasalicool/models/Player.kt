@@ -3,16 +3,19 @@ package com.example.tasalicool.models
 import java.io.Serializable
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 data class Player(
     val id: String,
     val name: String,
+
     val hand: MutableList<Card> = mutableListOf(),
 
     var score: Int = 0,
     var bid: Int = 0,
     var tricksWon: Int = 0,
     var teamId: Int = 0,
+
     val isLocal: Boolean = false,
 
     var difficulty: AIDifficulty = AIDifficulty.NORMAL,
@@ -20,12 +23,16 @@ data class Player(
 
 ) : Serializable {
 
+    /* ================= CARD MANAGEMENT ================= */
+
     fun addCards(cards: List<Card>) {
         hand.addAll(cards)
         hand.sortByDescending { it.strength() }
     }
 
-    fun removeCard(card: Card) = hand.remove(card)
+    fun removeCard(card: Card): Boolean {
+        return hand.remove(card)
+    }
 
     fun resetForNewRound() {
         bid = 0
@@ -33,19 +40,27 @@ data class Player(
         hand.clear()
     }
 
+    /* ================= TRICKS ================= */
+
     fun incrementTrick() {
         tricksWon++
     }
 
+    /* ================= ROUND SCORE ================= */
+
     fun applyRoundScore(): Int {
 
         val points = when {
+
+            // كبوت 13
             bid == 13 ->
                 if (tricksWon == 13) 400 else -52
 
+            // نجح في البيد
             tricksWon >= bid ->
                 if (bid >= 7) bid * 2 else bid
 
+            // فشل
             else ->
                 if (bid >= 7) -(bid * 2) else -bid
         }
@@ -54,6 +69,8 @@ data class Player(
         return points
     }
 
+    /* ================= AI BEHAVIOR ================= */
+
     fun aggressionFactor(): Double =
         when (difficulty) {
             AIDifficulty.EASY -> 0.8
@@ -61,6 +78,8 @@ data class Player(
             AIDifficulty.HARD -> 1.2
             AIDifficulty.ELITE -> 1.4
         }
+
+    /* ================= ELO RATING ================= */
 
     fun updateRating(opponentRating: Int, won: Boolean) {
 
@@ -72,8 +91,9 @@ data class Player(
         }
 
         val expected =
-            1.0 / (1 + Math.pow(10.0,
-                (opponentRating - rating) / 400.0))
+            1.0 / (1 + 10.0.pow(
+                (opponentRating - rating) / 400.0
+            ))
 
         val scoreValue = if (won) 1.0 else 0.0
 
@@ -82,5 +102,13 @@ data class Player(
                     (scoreValue - expected)).toInt()
 
         rating = max(800, min(3000, rating))
+    }
+
+    /* ================= NETWORK SYNC HELPER ================= */
+
+    fun toNetworkSafeCopy(): Player {
+        return copy(
+            hand = mutableListOf() // لا نرسل أوراق اللاعب للشبكة
+        )
     }
 }
