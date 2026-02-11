@@ -23,34 +23,46 @@ data class Player(
 
 ) : Serializable {
 
-    /* ================= CARD MANAGEMENT ================= */
+    /* ===================================================== */
+    /* ================= CARD MANAGEMENT =================== */
+    /* ===================================================== */
 
     fun addCards(cards: List<Card>) {
         hand.addAll(cards)
-        hand.sortByDescending { it.strength() }
+        sortHand()
     }
 
     fun removeCard(card: Card): Boolean {
-        return hand.remove(card)
+        val removed = hand.remove(card)
+        sortHand()
+        return removed
     }
 
     fun clearHand() {
         hand.clear()
     }
 
+    fun sortHand() {
+        hand.sortByDescending { it.strength() }
+    }
+
     fun resetForNewRound() {
         bid = 0
         tricksWon = 0
-        hand.clear()
+        clearHand()
     }
 
-    /* ================= TRICKS ================= */
+    /* ===================================================== */
+    /* ================= TRICKS ============================ */
+    /* ===================================================== */
 
     fun incrementTrick() {
         tricksWon++
     }
 
-    /* ================= ROUND SCORE ================= */
+    /* ===================================================== */
+    /* ================= ROUND SCORE ======================= */
+    /* ===================================================== */
 
     fun applyRoundScore(): Int {
 
@@ -60,7 +72,7 @@ data class Player(
             bid == 13 ->
                 if (tricksWon == 13) 400 else -52
 
-            // نجح في البيد
+            // نجح
             tricksWon >= bid ->
                 if (bid >= 7) bid * 2 else bid
 
@@ -73,7 +85,9 @@ data class Player(
         return points
     }
 
-    /* ================= AI BEHAVIOR ================= */
+    /* ===================================================== */
+    /* ================= AI BEHAVIOR ======================= */
+    /* ===================================================== */
 
     fun aggressionFactor(): Double =
         when (difficulty) {
@@ -83,7 +97,9 @@ data class Player(
             AIDifficulty.ELITE -> 1.4
         }
 
-    /* ================= ELO RATING ================= */
+    /* ===================================================== */
+    /* ================= ELO RATING ======================== */
+    /* ===================================================== */
 
     fun updateRating(opponentRating: Int, won: Boolean) {
 
@@ -108,25 +124,45 @@ data class Player(
         rating = max(800, min(3000, rating))
     }
 
-    /* ================= NETWORK SAFE COPY ================= */
+    /* ===================================================== */
+    /* ================= NETWORK SYNC ====================== */
+    /* ===================================================== */
 
     /**
-     * نسخة آمنة للشبكة (لا تحتوي على أوراق)
+     * نسخة كاملة للشبكة (تستخدم لإرسال الحالة من Host)
+     * نرسل اليد لأننا في نظام Host-Client
+     * Host هو المصدر الوحيد للحقيقة
      */
-    fun toNetworkSafeCopy(): Player {
+    fun toNetworkFullCopy(): Player {
         return copy(
-            hand = mutableListOf()
+            hand = hand.toMutableList()
         )
     }
 
     /**
-     * تحديث بيانات اللاعب من نسخة شبكة
+     * نسخة آمنة (لو أردت إخفاء أوراق لاعبين آخرين مستقبلاً)
+     */
+    fun toNetworkSafeCopy(): Player {
+        return copy(
+            hand = hand.toMutableList()
+        )
+    }
+
+    /**
+     * تحديث كامل من السيرفر (CLIENT يستخدمها)
      */
     fun updateFromNetwork(networkPlayer: Player) {
+
         score = networkPlayer.score
         bid = networkPlayer.bid
         tricksWon = networkPlayer.tricksWon
         teamId = networkPlayer.teamId
         rating = networkPlayer.rating
+        difficulty = networkPlayer.difficulty
+
+        // تحديث اليد بالكامل لضمان التزامن
+        hand.clear()
+        hand.addAll(networkPlayer.hand)
+        sortHand()
     }
 }
