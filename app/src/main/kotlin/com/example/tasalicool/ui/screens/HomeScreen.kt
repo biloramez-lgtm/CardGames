@@ -1,6 +1,8 @@
 package com.example.tasalicool.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -15,9 +17,9 @@ fun HomeScreen(navController: NavHostController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -28,13 +30,15 @@ fun HomeScreen(navController: NavHostController) {
             color = MaterialTheme.colorScheme.primary
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
         Text(
             text = "ألعاب الورق العربية",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(36.dp))
 
         GameCard(
             title = "لعبة 400",
@@ -57,7 +61,7 @@ fun HomeScreen(navController: NavHostController) {
             onClick = { navController.navigate("hand_game") }
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -78,6 +82,8 @@ fun HomeScreen(navController: NavHostController) {
                 Text("Network")
             }
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -93,7 +99,8 @@ private fun GameCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        shape = MaterialTheme.shapes.large
     ) {
 
         Column(
@@ -108,14 +115,14 @@ private fun GameCard(
                 style = MaterialTheme.typography.displaySmall
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = description,
@@ -124,7 +131,7 @@ private fun GameCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Button(
                 onClick = onClick,
