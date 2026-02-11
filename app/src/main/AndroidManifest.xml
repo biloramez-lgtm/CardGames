@@ -6,14 +6,17 @@
     <!-- Network Permissions -->
     <!-- ========================= -->
 
-    <!-- Required for Wi-Fi Local Socket Server -->
+    <!-- Required for Local WiFi Socket -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Check network connection state -->
+    <!-- Check network state -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Access Wi-Fi network info (for local multiplayer) -->
+    <!-- Access WiFi info -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Optional but recommended for hotspot / P2P -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
 
     <application
         android:allowBackup="true"
