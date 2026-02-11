@@ -1,4 +1,4 @@
-package com.example.cardgames.network
+package com.example.tasalicool.network
 
 import com.google.gson.Gson
 import java.io.DataInputStream
