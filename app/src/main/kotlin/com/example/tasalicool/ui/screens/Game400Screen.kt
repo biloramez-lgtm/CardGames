@@ -21,22 +21,23 @@ import com.example.tasalicool.ui.components.CompactCardView
 @Composable
 fun Game400Screen(navController: NavHostController) {
 
-    var gameRound by remember {
-        mutableStateOf(
-            Game400Round(
-                players = listOf(
-                    Player("p1", "أنت"),
-                    Player("p2", "اللاعب 2")
-                )
+    val gameRound = remember {
+        Game400Round(
+            players = listOf(
+                Player("p1", "أنت"),
+                Player("p2", "اللاعب 2")
             )
         )
     }
 
     var selectedCard by remember { mutableStateOf<Card?>(null) }
 
+    // state بسيط فقط لإجبار recomposition عند الحاجة
+    var uiTrigger by remember { mutableStateOf(0) }
+
     LaunchedEffect(Unit) {
         gameRound.initialize()
-        gameRound = gameRound.copy() // 🔥 يجبر إعادة الرسم مرة واحدة
+        uiTrigger++
     }
 
     Column(
@@ -45,6 +46,7 @@ fun Game400Screen(navController: NavHostController) {
             .padding(16.dp)
     ) {
 
+        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -62,6 +64,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Player Info
         gameRound.players.forEach { player ->
             PlayerInfoCard(
                 player = player,
@@ -71,6 +74,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Table
         Text(
             text = "أوراق على الطاولة",
             style = MaterialTheme.typography.titleMedium
@@ -87,8 +91,8 @@ fun Game400Screen(navController: NavHostController) {
             if (gameRound.deck.size() > 0) {
                 CardBackView(
                     onClick = {
-                        gameRound.drawFromDeck(gameRound.getCurrentPlayer())
-                        gameRound = gameRound.copy() // 🔥 تحديث UI
+                        gameRound.drawFromDeck()
+                        uiTrigger++
                     }
                 )
                 Text(text = "${gameRound.deck.size()}")
@@ -101,6 +105,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Player Hand
         Text(
             text = "أوراقك",
             style = MaterialTheme.typography.titleMedium
@@ -123,6 +128,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Actions
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -131,10 +137,9 @@ fun Game400Screen(navController: NavHostController) {
             Button(
                 onClick = {
                     selectedCard?.let {
-                        if (gameRound.canPlay(it)) {
-                            gameRound.playCard(it)
+                        if (gameRound.playCard(it)) {
                             selectedCard = null
-                            gameRound = gameRound.copy() // 🔥 تحديث UI
+                            uiTrigger++
                         }
                     }
                 },
@@ -146,13 +151,23 @@ fun Game400Screen(navController: NavHostController) {
 
             Button(
                 onClick = {
-                    gameRound.drawFromDeck(gameRound.getCurrentPlayer())
-                    gameRound = gameRound.copy() // 🔥 تحديث UI
+                    gameRound.drawFromDeck()
+                    uiTrigger++
                 },
                 modifier = Modifier.weight(1f)
             ) {
                 Text("سحب ورقة")
             }
+        }
+
+        // نهاية الجولة
+        if (gameRound.isRoundOver()) {
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "انتهت الجولة",
+                style = MaterialTheme.typography.titleLarge
+            )
         }
     }
 }
