@@ -18,14 +18,20 @@ class Game400Engine(
     val players: List<Player>
 ) : Serializable {
 
+    @Transient
     private val appContext = context.applicationContext
-    val deck = Deck()
 
+    @Transient
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences(
             "FINAL_ELITE_AI",
             Context.MODE_PRIVATE
         )
+
+    @Transient
+    private val handler = Handler(Looper.getMainLooper())
+
+    val deck = Deck()
 
     private val elo = EloRating()
     private val learning = PlayerLearningSystem()
@@ -60,8 +66,7 @@ class Game400Engine(
         roundActive = true
         currentTrick.clear()
 
-        // ✅ FIXED
-        GameSaveManager.saveGame(appContext, buildGameState())
+        saveGame()
     }
 
     private fun runHybridBidding() {
@@ -88,15 +93,16 @@ class Game400Engine(
             playCard(current, card)
 
             if (roundActive && !getCurrentPlayer().isLocal) {
-                Handler(Looper.getMainLooper()).postDelayed({
+                handler.postDelayed({
                     playAITurnIfNeeded()
-                }, 300)
+                }, 350)
             }
         }
     }
 
-    private fun buildGameState(): GameState {
+    /* ================= GAME STATE ================= */
 
+    private fun buildGameState(): GameState {
         return GameState(
             players = players,
             currentPlayerIndex = currentPlayerIndex,
@@ -108,6 +114,12 @@ class Game400Engine(
         )
     }
 
+    private fun saveGame() {
+        if (::appContext.isInitialized) {
+            GameSaveManager.saveGame(appContext, buildGameState())
+        }
+    }
+
     /* ================= GAME FLOW ================= */
 
     fun playCard(player: Player, card: Card): Boolean {
@@ -116,8 +128,10 @@ class Game400Engine(
         if (player != getCurrentPlayer()) return false
         if (!isValidPlay(player, card)) return false
 
+        // تطوير نظام التعلم الحقيقي
         if (player.isLocal) {
-            learning.updateSkillLevel(1, 50)
+            val performanceScore = evaluateMove(card)
+            learning.updateSkillLevel(1, performanceScore)
         }
 
         player.removeCard(card)
@@ -130,10 +144,17 @@ class Game400Engine(
         else
             nextPlayer()
 
-        // ✅ FIXED
-        GameSaveManager.saveGame(appContext, buildGameState())
+        saveGame()
 
         return true
+    }
+
+    private fun evaluateMove(card: Card): Int {
+        return when {
+            card.suit == Game400Constants.TRUMP_SUIT -> 85
+            card.strength() > 10 -> 70
+            else -> 50
+        }
     }
 
     fun getCurrentPlayer() =
@@ -156,7 +177,7 @@ class Game400Engine(
         currentTrick.clear()
         trickNumber++
 
-        if (trickNumber == 13)
+        if (trickNumber >= 13)
             finishRound()
     }
 
@@ -182,14 +203,14 @@ class Game400Engine(
 
     private fun finishRound() {
 
-        val winningTeam =
+        val teamScores =
             players.groupBy { it.teamId }
-                .maxBy {
-                    it.value.sumOf { p -> p.tricksWon }
-                }.key
+                .mapValues { entry ->
+                    entry.value.sumOf { it.tricksWon }
+                }
 
-        val aiWon =
-            winningTeam != players.first().teamId
+        val winningTeam =
+            teamScores.maxBy { it.value }.key
 
         players.forEach { it.applyRoundScore() }
 
@@ -197,8 +218,7 @@ class Game400Engine(
 
         roundActive = false
 
-        // ✅ FIXED
-        GameSaveManager.saveGame(appContext, buildGameState())
+        saveGame()
     }
 
     private fun checkGameWinner() {
