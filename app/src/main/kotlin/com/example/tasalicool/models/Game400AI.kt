@@ -6,7 +6,21 @@ import kotlin.math.min
 object Game400AI {
 
     /* =========================================================
-       🧠 تقييم قوة اليد (تحليل احترافي أعمق)
+       🧠 ذاكرة عالمية للأوراق الملعوبة
+       ========================================================= */
+
+    private val playedCards = mutableSetOf<Card>()
+
+    fun rememberCard(card: Card) {
+        playedCards.add(card)
+    }
+
+    fun resetMemory() {
+        playedCards.clear()
+    }
+
+    /* =========================================================
+       🧠 تقييم قوة اليد (Hybrid محسّن)
        ========================================================= */
 
     fun evaluateHandStrength(player: Player): Double {
@@ -16,35 +30,31 @@ object Game400AI {
         val trumpCards = player.hand.filter { it.isTrump() }
         val highCards = player.hand.filter { it.rank.value >= 11 }
 
-        // وزن عدد الطرنيب
-        score += trumpCards.size * 3.0
+        score += trumpCards.size * 3.5
 
-        // وزن قوة الطرنيب نفسه
         trumpCards.forEach {
             score += when (it.rank) {
-                Rank.ACE -> 3.5
-                Rank.KING -> 2.5
-                Rank.QUEEN -> 1.5
-                else -> 0.5
+                Rank.ACE -> 4.0
+                Rank.KING -> 3.0
+                Rank.QUEEN -> 2.0
+                else -> 1.0
             }
         }
 
-        // وزن الأوراق العالية غير الطرنيب
         highCards.forEach {
-            if (!it.isTrump()) score += 1.2
+            if (!it.isTrump()) score += 1.5
         }
 
-        // توزيع الأنواع (قلة نوع = فرصة قطع)
         val suitCounts = player.hand.groupBy { it.suit }
         suitCounts.forEach { (_, cards) ->
-            if (cards.size <= 2) score += 1.0
+            if (cards.size <= 2) score += 1.5
         }
 
         return score
     }
 
     /* =========================================================
-       🎯 مزايدة أذكى
+       🎯 مزايدة هجومية ذكية
        ========================================================= */
 
     fun calculateBid(player: Player): Int {
@@ -56,14 +66,14 @@ object Game400AI {
         bid = max(2, bid)
         bid = min(13, bid)
 
-        if (strength > 20) bid += 1
-        if (strength > 25) bid += 1
+        if (strength > 22) bid += 1
+        if (strength > 28) bid += 1
 
         return min(bid, 13)
     }
 
     /* =========================================================
-       🧠 اختيار ورقة بذكاء تكتيكي
+       🧠 اختيار ورقة – Hybrid Elite
        ========================================================= */
 
     fun chooseCard(
@@ -72,118 +82,177 @@ object Game400AI {
     ): Card {
 
         val trick = gameState.currentTrick
+        val validCards = getValidCards(player, trick)
 
-        // إذا أول لاعب
-        if (trick.isEmpty()) {
-            return chooseOpeningCard(player)
+        var bestCard = validCards.first()
+        var bestScore = Double.NEGATIVE_INFINITY
+
+        for (card in validCards) {
+
+            val probability = calculateWinProbability(player, card)
+            val tactical = tacticalEvaluation(player, card)
+            val stage = stageFactor(gameState)
+            val partner = partnerFactor(player, trick)
+            val risk = riskFactor(player, gameState)
+
+            val score =
+                probability * 0.40 +
+                tactical * 0.25 +
+                stage * 0.15 +
+                partner * 0.10 -
+                risk * 0.10
+
+            if (score > bestScore) {
+                bestScore = score
+                bestCard = card
+            }
         }
 
-        val leadSuit = trick.first().second.suit
-        val sameSuitCards = player.hand.filter { it.suit == leadSuit }
-        val trumpCards = player.hand.filter { it.isTrump() }
+        return bestCard
+    }
 
-        val currentWinner = getCurrentWinner(trick)
-        val winningTeam = currentWinner?.first?.teamId
-        val myTeam = player.teamId
+    /* =========================================================
+       🎯 حساب الاحتمال الحقيقي للفوز
+       ========================================================= */
 
-        /* ==============================
-           1️⃣ إذا عنده نفس النوع
-           ============================== */
+    private fun calculateWinProbability(
+        player: Player,
+        card: Card
+    ): Double {
 
-        if (sameSuitCards.isNotEmpty()) {
+        val remaining = buildRemainingDeck(player, card)
 
-            // إذا فريقي رابح → لعب دفاع
-            if (winningTeam == myTeam) {
-                return sameSuitCards.minBy { it.rank.value }
+        val higherSameSuit =
+            remaining.count {
+                it.suit == card.suit &&
+                        it.rank.value > card.rank.value
             }
 
-            // حاول تربح بأقل ورقة ممكنة
-            val winningCard = currentWinner?.second
-
-            val better = sameSuitCards
-                .filter { compareCards(it, winningCard!!) > 0 }
-                .minByOrNull { it.rank.value }
-
-            return better ?: sameSuitCards.minBy { it.rank.value }
-        }
-
-        /* ==============================
-           2️⃣ ما عنده نفس النوع → طرنيب؟
-           ============================== */
-
-        if (trumpCards.isNotEmpty()) {
-
-            if (winningTeam == myTeam) {
-                return player.hand.minBy { it.rank.value }
+        val trumpThreat =
+            remaining.count {
+                it.isTrump() &&
+                        !card.isTrump()
             }
 
-            val winningCard = currentWinner?.second
+        val total = remaining.size.toDouble()
+        if (total == 0.0) return 1.0
 
-            val betterTrump = trumpCards
-                .filter { compareCards(it, winningCard!!) > 0 }
-                .minByOrNull { it.rank.value }
+        val risk =
+            (higherSameSuit + trumpThreat * 0.8) / total
 
-            return betterTrump ?: player.hand.minBy { it.rank.value }
-        }
+        return 1.0 - risk
+    }
 
-        /* ==============================
-           3️⃣ ما عنده شيء مفيد
-           ============================== */
+    private fun buildRemainingDeck(
+        player: Player,
+        card: Card
+    ): List<Card> {
 
-        return player.hand.minBy { it.rank.value }
+        val all =
+            Suit.values().flatMap { s ->
+                Rank.values().map { r ->
+                    Card(s, r)
+                }
+            }
+
+        return all
+            .filterNot { playedCards.contains(it) }
+            .filterNot { player.hand.contains(it) }
+            .filterNot { it == card }
     }
 
     /* ========================================================= */
 
-    private fun chooseOpeningCard(player: Player): Card {
+    private fun tacticalEvaluation(
+        player: Player,
+        card: Card
+    ): Double {
 
-        val strongTrump = player.hand
-            .filter { it.isTrump() }
-            .maxByOrNull { it.rank.value }
+        var score = card.rank.value / 14.0
 
-        if (strongTrump != null && strongTrump.rank.value >= 13) {
-            return strongTrump
-        }
+        if (card.isTrump())
+            score += 0.9
 
-        // افتح بأقوى نوع تملكه بكثرة
-        val grouped = player.hand.groupBy { it.suit }
-        val strongestSuit = grouped.maxBy { it.value.size }.key
+        val needed =
+            player.bid - player.tricksWon
 
-        return grouped[strongestSuit]!!
-            .maxBy { it.rank.value }
+        if (needed > 0)
+            score += 0.6
+        else
+            score -= 0.3
+
+        return score
     }
 
-    /* ========================================================= */
+    private fun stageFactor(
+        gameState: GameState
+    ): Double {
 
-    private fun getCurrentWinner(
+        val trickNumber =
+            gameState.players.sumOf { it.tricksWon }
+
+        return when {
+            trickNumber < 4 -> 0.3
+            trickNumber < 9 -> 0.6
+            else -> 1.0
+        }
+    }
+
+    private fun partnerFactor(
+        player: Player,
         trick: List<Pair<Player, Card>>
-    ): Pair<Player, Card>? {
+    ): Double {
 
-        if (trick.isEmpty()) return null
+        val partner =
+            trick.firstOrNull {
+                it.first.teamId == player.teamId &&
+                        it.first != player
+            }?.first
 
-        val leadSuit = trick.first().second.suit
+        val currentWinner =
+            trick.maxByOrNull { it.second.rank.value }?.first
 
-        val trumpCards = trick.filter { it.second.isTrump() }
+        return if (currentWinner == partner)
+            -0.5
+        else 0.3
+    }
 
-        return if (trumpCards.isNotEmpty()) {
-            trumpCards.maxByOrNull { it.second.rank.value }
-        } else {
-            trick.filter { it.second.suit == leadSuit }
-                .maxByOrNull { it.second.rank.value }
+    private fun riskFactor(
+        player: Player,
+        gameState: GameState
+    ): Double {
+
+        val totalTricks =
+            gameState.players.sumOf { it.tricksWon }
+
+        val remaining = 13 - totalTricks
+        val needed = player.bid - player.tricksWon
+
+        return when {
+            needed > remaining -> 1.0
+            needed <= 0 -> 0.2
+            else -> 0.5
         }
     }
 
     /* ========================================================= */
 
-    private fun compareCards(a: Card, b: Card): Int {
+    private fun getValidCards(
+        player: Player,
+        trick: List<Pair<Player, Card>>
+    ): List<Card> {
 
-        if (a.isTrump() && !b.isTrump()) return 1
-        if (!a.isTrump() && b.isTrump()) return -1
+        if (trick.isEmpty())
+            return player.hand
 
-        if (a.suit == b.suit) {
-            return a.rank.value - b.rank.value
-        }
+        val leadSuit =
+            trick.first().second.suit
 
-        return 0
+        val hasSuit =
+            player.hand.any { it.suit == leadSuit }
+
+        return if (hasSuit)
+            player.hand.filter { it.suit == leadSuit }
+        else player.hand
     }
 }
