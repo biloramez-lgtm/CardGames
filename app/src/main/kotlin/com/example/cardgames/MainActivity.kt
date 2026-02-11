@@ -1,4 +1,4 @@
-package com.example.cardgames
+package com.example.tasalicool
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,21 +12,21 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.cardgames.ui.screens.Game400Screen
-import com.example.cardgames.ui.screens.HomeScreen
-import com.example.cardgames.ui.theme.CardGamesTheme
+import com.example.tasalicool.ui.screens.Game400Screen
+import com.example.tasalicool.ui.screens.HomeScreen
+import com.example.tasalicool.ui.theme.tasalicoolTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            CardGamesTheme {
+            tasalicoolTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    CardGamesNavigation(navController)
+                    tasalicoolNavigation(navController)
                 }
             }
         }
@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun CardGamesNavigation(navController: NavHostController) {
+fun tasalicoolNavigation(navController: NavHostController) {
     NavHost(
         navController = navController,
         startDestination = "home"
