@@ -12,11 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
-import com.example.tasalicool.ui.screens.Game400Screen
-import com.example.tasalicool.ui.screens.HomeScreen
-import com.example.tasalicool.ui.screens.AboutScreen
-import com.example.tasalicool.ui.screens.HostGameScreen
-import com.example.tasalicool.ui.screens.JoinGameScreen
+import com.example.tasalicool.ui.screens.*
 import com.example.tasalicool.ui.theme.TasalicoolTheme
 
 class MainActivity : ComponentActivity() {
@@ -51,53 +47,42 @@ fun TasalicoolNavGraph(navController: NavHostController) {
     ) {
 
         /* ================= HOME ================= */
-
         composable("home") {
             HomeScreen(navController)
         }
 
-        /* ================= NEW GAME ================= */
-
+        /* ================= GAME 400 ================= */
         composable("game_400") {
             Game400Screen(navController)
         }
 
         /* ================= RESUME GAME ================= */
-
         composable("resume_game") {
             Game400Screen(navController)
         }
 
         /* ================= ABOUT ================= */
-
         composable("about") {
             AboutScreen(navController)
         }
 
-        /* ================= OTHER SCREENS ================= */
+        /* ================= WIFI LOCAL HOST ================= */
+        composable("host_game") {
+            HostGameScreen(navController)
+        }
 
+        /* ================= WIFI LOCAL JOIN ================= */
+        composable("join_game") {
+            JoinGameScreen(navController)
+        }
+
+        /* ================= OTHER PLACEHOLDERS ================= */
         composable("solitaire") {
             PlaceholderScreen("Solitaire", navController)
         }
 
         composable("hand_game") {
             PlaceholderScreen("Hand Game", navController)
-        }
-
-        composable("bluetooth") {
-            PlaceholderScreen("Bluetooth Mode", navController)
-        }
-
-        /* ================= WIFI HOST ================= */
-
-        composable("host") {
-            HostGameScreen(navController)
-        }
-
-        /* ================= WIFI JOIN ================= */
-
-        composable("join") {
-            JoinGameScreen(navController)
         }
     }
 }
@@ -111,7 +96,6 @@ fun PlaceholderScreen(
     title: String,
     navController: NavHostController
 ) {
-
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
