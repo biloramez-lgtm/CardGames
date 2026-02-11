@@ -7,9 +7,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.example.tasalicool.network.NetworkActions
 import com.example.tasalicool.network.NetworkGameServer
-import com.example.tasalicool.network.NetworkMessage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
@@ -18,9 +18,16 @@ fun HostGameScreen(navController: NavHostController) {
 
     var serverStarted by remember { mutableStateOf(false) }
     var connectedPlayers by remember { mutableStateOf(listOf<String>()) }
-    var logs by remember { mutableStateOf(listOf<String>()) }
+    var statusText by remember { mutableStateOf("السيرفر غير مشغل") }
 
     val server = remember { NetworkGameServer(5000) }
+
+    /* 🔥 إيقاف السيرفر عند الخروج من الشاشة */
+    DisposableEffect(Unit) {
+        onDispose {
+            server.stopServer()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -38,8 +45,19 @@ fun HostGameScreen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text("IP جهازك:")
-        Text(getLocalIpAddress() ?: "غير متصل بالشبكة")
+        Text(
+            text = "IP جهازك:",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Text(
+            text = getLocalIpAddress() ?: "غير متصل بالشبكة",
+            style = MaterialTheme.typography.bodyLarge
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(statusText)
 
         Spacer(modifier = Modifier.height(30.dp))
 
@@ -48,34 +66,17 @@ fun HostGameScreen(navController: NavHostController) {
                 if (!serverStarted) {
 
                     server.startServer(
-
                         onClientConnected = { playerId ->
                             connectedPlayers = connectedPlayers + playerId
-
-                            logs = logs + "🟢 Player Joined: $playerId"
-
-                            // إرسال رسالة انضمام
-                            server.broadcastMessage(
-                                NetworkMessage(
-                                    playerId = playerId,
-                                    gameType = "LOCAL_WIFI",
-                                    action = NetworkActions.PLAYER_JOINED
-                                )
-                            )
+                            statusText = "لاعب متصل: $playerId"
                         },
-
                         onMessageReceived = { message ->
-
-                            logs = logs + "📩 ${message.playerId}: ${message.action}"
-
-                            if (message.action == NetworkActions.PLAYER_LEFT) {
-                                connectedPlayers =
-                                    connectedPlayers.filter { it != message.playerId }
-                            }
+                            statusText = "تم استلام رسالة: ${message.action}"
                         }
                     )
 
                     serverStarted = true
+                    statusText = "السيرفر يعمل على المنفذ 5000"
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -86,26 +87,17 @@ fun HostGameScreen(navController: NavHostController) {
         Spacer(modifier = Modifier.height(30.dp))
 
         Text("اللاعبون المتصلون:")
+
         Spacer(modifier = Modifier.height(10.dp))
 
         connectedPlayers.forEach {
             Text("• $it")
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
-
-        Text("سجل الأحداث:")
-        Spacer(modifier = Modifier.height(10.dp))
-
-        logs.takeLast(5).forEach {
-            Text(it)
-        }
-
         Spacer(modifier = Modifier.height(40.dp))
 
         Button(
             onClick = {
-                server.stopServer()
                 navController.popBackStack()
             },
             modifier = Modifier.fillMaxWidth()
