@@ -1,11 +1,13 @@
 package com.example.tasalicool.network
 
+import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 class NetworkGameServer(private val port: Int = 5000) {
@@ -14,6 +16,9 @@ class NetworkGameServer(private val port: Int = 5000) {
     private val clients = CopyOnWriteArrayList<ClientConnection>()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val gson = Gson()
+
+    private val isRunning = AtomicBoolean(false)
     private val playerCounter = AtomicInteger(1)
 
     /* ===================================================== */
@@ -25,12 +30,17 @@ class NetworkGameServer(private val port: Int = 5000) {
         onClientDisconnected: (String) -> Unit = {},
         onMessageReceived: (NetworkMessage) -> Unit = {}
     ) {
+        if (isRunning.get()) return
+
         scope.launch {
             try {
                 serverSocket = ServerSocket(port)
+                isRunning.set(true)
+
                 println("🔥 Server started on port $port")
 
-                while (isActive) {
+                while (isActive && isRunning.get()) {
+
                     val socket = serverSocket?.accept() ?: continue
 
                     val playerId = "Player_${playerCounter.getAndIncrement()}"
@@ -41,16 +51,21 @@ class NetworkGameServer(private val port: Int = 5000) {
                     println("✅ Client connected: $playerId")
                     onClientConnected(playerId)
 
-                    // إرسال رسالة JOIN للجميع
+                    // إعلام الجميع بانضمام لاعب
                     broadcastMessage(
                         NetworkMessage(
                             playerId = playerId,
                             gameType = "TASALI",
-                            action = GameAction.JOIN
+                            action = NetworkActions.PLAYER_JOINED,
+                            data = null
                         )
                     )
 
-                    listenToClient(client, onClientDisconnected, onMessageReceived)
+                    listenToClient(
+                        client,
+                        onClientDisconnected,
+                        onMessageReceived
+                    )
                 }
 
             } catch (e: Exception) {
@@ -70,27 +85,50 @@ class NetworkGameServer(private val port: Int = 5000) {
     ) {
         scope.launch {
             try {
-                while (isActive) {
+                while (isActive && isRunning.get()) {
+
                     val json = client.input.readUTF()
-                    val message = NetworkMessage.fromJson(json)
+                    val message =
+                        gson.fromJson(json, NetworkMessage::class.java)
 
                     onMessageReceived(message)
 
                     when (message.action) {
 
-                        GameAction.PLAY_CARD,
-                        GameAction.DEAL_CARDS,
-                        GameAction.START_GAME,
-                        GameAction.UPDATE_GAME_STATE,
-                        GameAction.MESSAGE -> {
+                        // توزيع أوراق
+                        NetworkActions.DEAL_CARDS -> {
+                            broadcastMessage(
+                                message,
+                                excludePlayer = null
+                            )
+                        }
 
+                        // لعب ورقة
+                        NetworkActions.PLAY_CARD -> {
                             broadcastMessage(
                                 message,
                                 excludePlayer = client.playerId
                             )
                         }
 
-                        GameAction.LEAVE -> {
+                        // تحديث حالة اللعبة
+                        NetworkActions.GAME_STATE_UPDATE -> {
+                            broadcastMessage(
+                                message,
+                                excludePlayer = client.playerId
+                            )
+                        }
+
+                        // رسائل دردشة
+                        NetworkActions.MESSAGE -> {
+                            broadcastMessage(
+                                message,
+                                excludePlayer = null
+                            )
+                        }
+
+                        // مغادرة
+                        NetworkActions.PLAYER_LEFT -> {
                             removeClient(client, onClientDisconnected)
                         }
 
@@ -112,7 +150,7 @@ class NetworkGameServer(private val port: Int = 5000) {
         message: NetworkMessage,
         excludePlayer: String? = null
     ) {
-        val json = NetworkMessage.toJson(message)
+        val json = gson.toJson(message)
 
         clients.forEach { client ->
             if (client.playerId == excludePlayer) return@forEach
@@ -131,7 +169,7 @@ class NetworkGameServer(private val port: Int = 5000) {
     /* ===================================================== */
 
     fun sendToPlayer(playerId: String, message: NetworkMessage) {
-        val json = NetworkMessage.toJson(message)
+        val json = gson.toJson(message)
 
         clients.find { it.playerId == playerId }?.let { client ->
             try {
@@ -161,7 +199,8 @@ class NetworkGameServer(private val port: Int = 5000) {
             NetworkMessage(
                 playerId = client.playerId,
                 gameType = "TASALI",
-                action = GameAction.LEAVE
+                action = NetworkActions.PLAYER_LEFT,
+                data = null
             )
         )
 
@@ -173,6 +212,7 @@ class NetworkGameServer(private val port: Int = 5000) {
     /* ===================================================== */
 
     fun stopServer() {
+        isRunning.set(false)
         scope.cancel()
 
         clients.forEach {
