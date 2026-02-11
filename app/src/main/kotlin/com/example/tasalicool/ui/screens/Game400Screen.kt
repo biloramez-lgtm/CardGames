@@ -40,14 +40,22 @@ fun Game400Screen(navController: NavHostController) {
     var selectedCard by remember { mutableStateOf<Card?>(null) }
     var uiTrigger by remember { mutableStateOf(0) }
 
+    /* ================= START ROUND ================= */
+
     LaunchedEffect(Unit) {
         engine.startNewRound()
         uiTrigger++
     }
 
-    LaunchedEffect(uiTrigger) {
-        while (engine.roundActive && !engine.getCurrentPlayer().isLocal) {
-            delay(700)
+    /* ================= AI DRIVER ================= */
+    /* يشغل الذكاء فقط عندما يتغير الدور */
+
+    LaunchedEffect(engine.currentPlayerIndex, uiTrigger) {
+
+        if (engine.roundActive &&
+            !engine.getCurrentPlayer().isLocal
+        ) {
+            delay(600)
             engine.playAITurnIfNeeded()
             uiTrigger++
         }
@@ -68,12 +76,19 @@ fun Game400Screen(navController: NavHostController) {
         /* ================= HEADER ================= */
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+
+            IconButton(onClick = {
+                navController.popBackStack()
+            }) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = null,
+                    tint = Color.White
+                )
             }
 
             Text(
-                text = "🎴 لعبة 400 - Legendary AI",
+                text = "🎴 لعبة 400 - Hybrid Elite AI",
                 color = Color.White,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
@@ -124,7 +139,9 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             items(localPlayer.hand) { card ->
                 CompactCardView(
                     card = card,
@@ -148,9 +165,10 @@ fun Game400Screen(navController: NavHostController) {
                     }
                 }
             },
-            enabled = selectedCard != null &&
-                    engine.getCurrentPlayer().isLocal &&
-                    engine.roundActive,
+            enabled =
+                selectedCard != null &&
+                engine.getCurrentPlayer().isLocal &&
+                engine.roundActive,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("لعب الورقة")
@@ -167,16 +185,19 @@ fun PlayerSideInfo(player: Player, engine: Game400Engine) {
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isCurrent)
+            containerColor =
+            if (isCurrent)
                 Color(0xFF1B5E20)
-            else Color(0xFF1F4D3A)
+            else
+                Color(0xFF1F4D3A)
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement =
+            Arrangement.SpaceBetween
         ) {
             Column {
                 Text(player.name, color = Color.White)
@@ -202,17 +223,23 @@ fun PlayerVerticalInfo(player: Player, engine: Game400Engine) {
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isCurrent)
+            containerColor =
+            if (isCurrent)
                 Color(0xFF1B5E20)
-            else Color(0xFF1F4D3A)
+            else
+                Color(0xFF1F4D3A)
         )
     ) {
         Column(
             modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment =
+            Alignment.CenterHorizontally
         ) {
             Text(player.name, color = Color.White)
-            Text("${player.tricksWon}", color = Color.White)
+            Text(
+                "${player.tricksWon}",
+                color = Color.White
+            )
         }
     }
 }
