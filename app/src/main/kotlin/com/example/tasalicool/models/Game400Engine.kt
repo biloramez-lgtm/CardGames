@@ -16,9 +16,16 @@ class Game400Engine(
     val players: List<Player>
 ) : Serializable {
 
+    // ✅ نحفظ Application Context فقط (آمن)
+    private val appContext = context.applicationContext
+
     val deck = Deck()
-    private val prefs =
-        context.getSharedPreferences("FINAL_ELITE_AI", Context.MODE_PRIVATE)
+
+    private val prefs: SharedPreferences =
+        appContext.getSharedPreferences(
+            "FINAL_ELITE_AI",
+            Context.MODE_PRIVATE
+        )
 
     private val elo = EloRating(prefs)
     private val learning = PlayerLearningSystem(prefs)
@@ -116,20 +123,11 @@ class Game400Engine(
 
         for (card in valid) {
 
-            val probability =
-                calculateWinProbability(player, card)
-
-            val tactical =
-                tacticalEvaluation(player, card)
-
-            val stage =
-                stageFactor()
-
-            val partner =
-                partnerFactor(player, card)
-
-            val risk =
-                riskFactor(player)
+            val probability = calculateWinProbability(player, card)
+            val tactical = tacticalEvaluation(player, card)
+            val stage = stageFactor()
+            val partner = partnerFactor(player)
+            val risk = riskFactor(player)
 
             val score =
                 probability * 0.40 +
@@ -154,8 +152,7 @@ class Game400Engine(
         card: Card
     ): Double {
 
-        val remaining =
-            buildRemainingDeck(player, card)
+        val remaining = buildRemainingDeck(player, card)
 
         val higherSameSuit =
             remaining.count {
@@ -219,8 +216,6 @@ class Game400Engine(
         return score
     }
 
-    /* ================= STAGE ================= */
-
     private fun stageFactor(): Double {
         return when {
             trickNumber < 4 -> 0.3
@@ -229,38 +224,25 @@ class Game400Engine(
         }
     }
 
-    /* ================= PARTNER ================= */
-
-    private fun partnerFactor(
-        player: Player,
-        card: Card
-    ): Double {
+    private fun partnerFactor(player: Player): Double {
 
         val partner =
             players.firstOrNull {
-                it.teamId == player.teamId &&
-                        it != player
+                it.teamId == player.teamId && it != player
             } ?: return 0.0
 
         val currentWinner =
-            currentTrick.maxByOrNull {
-                it.second.rank.value
-            }?.first
+            currentTrick.maxByOrNull { it.second.rank.value }?.first
 
         return if (currentWinner == partner)
             -0.5
         else 0.3
     }
 
-    /* ================= RISK ================= */
-
     private fun riskFactor(player: Player): Double {
 
-        val needed =
-            player.bid - player.tricksWon
-
-        val remaining =
-            13 - trickNumber
+        val needed = player.bid - player.tricksWon
+        val remaining = 13 - trickNumber
 
         return when {
             needed > remaining -> 1.0
@@ -279,16 +261,6 @@ class Game400Engine(
 
         if (player.isLocal) {
             learning.recordPlayerMove(card)
-        }
-
-        val leadSuit =
-            currentTrick.firstOrNull()?.second?.suit
-
-        if (leadSuit != null &&
-            card.suit != leadSuit &&
-            player.hand.none { it.suit == leadSuit }
-        ) {
-            voidMemory[player]?.add(leadSuit)
         }
 
         player.removeCard(card)
@@ -394,58 +366,4 @@ class Game400Engine(
 
     fun isGameOver() =
         gameWinner != null
-}
-
-/* ================= LEARNING SYSTEM ================= */
-
-class PlayerLearningSystem(
-    private val prefs: SharedPreferences
-) {
-
-    private var aggression =
-        prefs.getFloat("player_aggression", 0.5f)
-
-    fun recordPlayerMove(card: Card) {
-
-        if (card.rank.value >= 12)
-            aggression += 0.015f
-        else
-            aggression -= 0.01f
-
-        aggression =
-            aggression.coerceIn(0.1f, 1.0f)
-    }
-
-    fun endRoundAnalysis() {
-        prefs.edit()
-            .putFloat("player_aggression", aggression)
-            .apply()
-    }
-
-    fun getPlayerAggression(): Double =
-        aggression.toDouble()
-}
-
-/* ================= ELO ================= */
-
-class EloRating(private val prefs: SharedPreferences) {
-
-    var rating = prefs.getInt("elo_rating", 1800)
-
-    fun update(win: Boolean) {
-
-        val k = when {
-            rating < 1200 -> 32
-            rating < 2000 -> 20
-            else -> 12
-        }
-
-        val expected =
-            1 / (1 + 10.0.pow((1800 - rating)/400.0))
-
-        val score = if (win) 1 else 0
-
-        rating = (rating + k*(score-expected)).toInt()
-        prefs.edit().putInt("elo_rating", rating).apply()
-    }
 }
