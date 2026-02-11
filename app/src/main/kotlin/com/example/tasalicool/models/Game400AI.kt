@@ -6,7 +6,7 @@ import kotlin.math.min
 object Game400AI {
 
     /* =========================================================
-       🧠 تقييم قوة اليد (حساب احتمالي احترافي)
+       🧠 تقييم قوة اليد (تحليل احترافي أعمق)
        ========================================================= */
 
     fun evaluateHandStrength(player: Player): Double {
@@ -14,52 +14,56 @@ object Game400AI {
         var score = 0.0
 
         val trumpCards = player.hand.filter { it.isTrump() }
-        val highCards = player.hand.filter {
-            it.rank.value >= 11
-        }
+        val highCards = player.hand.filter { it.rank.value >= 11 }
 
-        // وزن الطرنيب (مهم جداً)
-        score += trumpCards.size * 2.5
+        // وزن عدد الطرنيب
+        score += trumpCards.size * 3.0
 
-        // وزن الأوراق العالية
-        score += highCards.size * 1.5
-
-        // آص الطرنيب أقوى شيء
+        // وزن قوة الطرنيب نفسه
         trumpCards.forEach {
-            if (it.rank == Rank.ACE) score += 2
-            if (it.rank == Rank.KING) score += 1
+            score += when (it.rank) {
+                Rank.ACE -> 3.5
+                Rank.KING -> 2.5
+                Rank.QUEEN -> 1.5
+                else -> 0.5
+            }
         }
 
-        // تنوع الأنواع مفيد تكتيكياً
-        val suitVariety = player.hand.map { it.suit }.distinct().size
-        score += suitVariety * 0.3
+        // وزن الأوراق العالية غير الطرنيب
+        highCards.forEach {
+            if (!it.isTrump()) score += 1.2
+        }
+
+        // توزيع الأنواع (قلة نوع = فرصة قطع)
+        val suitCounts = player.hand.groupBy { it.suit }
+        suitCounts.forEach { (_, cards) ->
+            if (cards.size <= 2) score += 1.0
+        }
 
         return score
     }
 
     /* =========================================================
-       🎯 حساب الطلب الذكي (Bidding AI)
+       🎯 مزايدة أذكى
        ========================================================= */
 
     fun calculateBid(player: Player): Int {
 
         val strength = evaluateHandStrength(player)
 
-        var bid = (strength / 3).toInt()
+        var bid = (strength / 4).toInt()
 
-        // حدود منطقية
         bid = max(2, bid)
         bid = min(13, bid)
 
-        // مخاطرة ذكية
-        if (strength > 18) bid += 1
-        if (strength > 22) bid += 1
+        if (strength > 20) bid += 1
+        if (strength > 25) bid += 1
 
         return min(bid, 13)
     }
 
     /* =========================================================
-       🧠 اختيار أفضل ورقة للعب (AI خرافي)
+       🧠 اختيار ورقة بذكاء تكتيكي
        ========================================================= */
 
     fun chooseCard(
@@ -67,42 +71,65 @@ object Game400AI {
         gameState: GameState
     ): Card {
 
-        val currentTrick = gameState.currentTrick
+        val trick = gameState.currentTrick
 
-        // إذا هو أول لاعب
-        if (currentTrick.isEmpty()) {
+        // إذا أول لاعب
+        if (trick.isEmpty()) {
             return chooseOpeningCard(player)
         }
 
-        val leadSuit = currentTrick.first().second.suit
-
+        val leadSuit = trick.first().second.suit
         val sameSuitCards = player.hand.filter { it.suit == leadSuit }
+        val trumpCards = player.hand.filter { it.isTrump() }
 
-        // إذا عنده نفس النوع لازم يلعب منه
+        val currentWinner = getCurrentWinner(trick)
+        val winningTeam = currentWinner?.first?.teamId
+        val myTeam = player.teamId
+
+        /* ==============================
+           1️⃣ إذا عنده نفس النوع
+           ============================== */
+
         if (sameSuitCards.isNotEmpty()) {
 
-            val winningCard = findWinningCard(
-                sameSuitCards,
-                currentTrick
-            )
+            // إذا فريقي رابح → لعب دفاع
+            if (winningTeam == myTeam) {
+                return sameSuitCards.minBy { it.rank.value }
+            }
 
-            return winningCard ?: sameSuitCards.minBy { it.rank.value }
+            // حاول تربح بأقل ورقة ممكنة
+            val winningCard = currentWinner?.second
+
+            val better = sameSuitCards
+                .filter { compareCards(it, winningCard!!) > 0 }
+                .minByOrNull { it.rank.value }
+
+            return better ?: sameSuitCards.minBy { it.rank.value }
         }
 
-        // ما عنده نفس النوع
-        val trumpCards = player.hand.filter { it.isTrump() }
+        /* ==============================
+           2️⃣ ما عنده نفس النوع → طرنيب؟
+           ============================== */
 
         if (trumpCards.isNotEmpty()) {
 
-            val winningTrump = findWinningCard(
-                trumpCards,
-                currentTrick
-            )
+            if (winningTeam == myTeam) {
+                return player.hand.minBy { it.rank.value }
+            }
 
-            return winningTrump ?: trumpCards.minBy { it.rank.value }
+            val winningCard = currentWinner?.second
+
+            val betterTrump = trumpCards
+                .filter { compareCards(it, winningCard!!) > 0 }
+                .minByOrNull { it.rank.value }
+
+            return betterTrump ?: player.hand.minBy { it.rank.value }
         }
 
-        // ما عنده شي مفيد → يرمي أضعف ورقة
+        /* ==============================
+           3️⃣ ما عنده شيء مفيد
+           ============================== */
+
         return player.hand.minBy { it.rank.value }
     }
 
@@ -114,48 +141,45 @@ object Game400AI {
             .filter { it.isTrump() }
             .maxByOrNull { it.rank.value }
 
-        if (strongTrump != null && strongTrump.rank.value >= 12) {
+        if (strongTrump != null && strongTrump.rank.value >= 13) {
             return strongTrump
         }
 
-        return player.hand.maxBy { it.rank.value }
+        // افتح بأقوى نوع تملكه بكثرة
+        val grouped = player.hand.groupBy { it.suit }
+        val strongestSuit = grouped.maxBy { it.value.size }.key
+
+        return grouped[strongestSuit]!!
+            .maxBy { it.rank.value }
     }
 
     /* ========================================================= */
 
-    private fun findWinningCard(
-        candidateCards: List<Card>,
-        currentTrick: List<Pair<Player, Card>>
-    ): Card? {
-
-        val highestOnTable = getHighestCard(currentTrick)
-
-        return candidateCards
-            .filter { compareCards(it, highestOnTable) > 0 }
-            .minByOrNull { it.rank.value }
-    }
-
-    /* ========================================================= */
-
-    private fun getHighestCard(
+    private fun getCurrentWinner(
         trick: List<Pair<Player, Card>>
-    ): Card {
+    ): Pair<Player, Card>? {
 
-        return trick.map { it.second }
-            .reduce { acc, card ->
-                if (compareCards(card, acc) > 0) card else acc
-            }
+        if (trick.isEmpty()) return null
+
+        val leadSuit = trick.first().second.suit
+
+        val trumpCards = trick.filter { it.second.isTrump() }
+
+        return if (trumpCards.isNotEmpty()) {
+            trumpCards.maxByOrNull { it.second.rank.value }
+        } else {
+            trick.filter { it.second.suit == leadSuit }
+                .maxByOrNull { it.second.rank.value }
+        }
     }
 
     /* ========================================================= */
 
     private fun compareCards(a: Card, b: Card): Int {
 
-        // الطرنيب يغلب كل شيء
         if (a.isTrump() && !b.isTrump()) return 1
         if (!a.isTrump() && b.isTrump()) return -1
 
-        // نفس النوع
         if (a.suit == b.suit) {
             return a.rank.value - b.rank.value
         }
