@@ -6,18 +6,11 @@ import java.io.Serializable
 data class GameState(
 
     val players: MutableList<Player> = mutableListOf(),
-
     var currentPlayerIndex: Int = 0,
-
     val deck: Deck = Deck(),
-
-    // نخزن playerId بدل Player object
     val currentTrick: MutableList<Pair<String, Card>> = mutableListOf(),
-
     var roundNumber: Int = 1,
-
     var gameInProgress: Boolean = true,
-
     var winnerId: String? = null
 
 ) : Serializable {
@@ -46,31 +39,37 @@ data class GameState(
         return players.all { it.hand.isEmpty() }
     }
 
-    fun startNewRound(cardsPerPlayer: Int = 5) {
+    /**
+     * يستخدم فقط من الـ HOST
+     * يرجع JSON جاهز للإرسال
+     */
+    fun startNewRoundAndCreateNetworkPayload(
+        cardsPerPlayer: Int = 5
+    ): String {
 
         roundNumber++
         currentTrick.clear()
         deck.reset()
+        deck.shuffle()
 
         players.forEach { it.resetForNewRound() }
 
         dealCards(cardsPerPlayer)
 
         currentPlayerIndex = 0
+
+        val safeState = toNetworkSafeCopy()
+        return gson.toJson(safeState)
     }
 
     /* ===================================================== */
-    /* ================= PLAY CARD (LOCAL) ================= */
+    /* ================= PLAY CARD (HOST) ================== */
     /* ===================================================== */
 
-    /**
-     * يستخدمه الجهاز المحلي
-     * يرجع payload جاهز للإرسال للشبكة
-     */
     fun playCardAndCreateNetworkPayload(
         playerId: String,
         card: Card
-    ): Map<String, String>? {
+    ): String? {
 
         val player = players.find { it.id == playerId }
             ?: return null
@@ -80,14 +79,7 @@ data class GameState(
         if (!player.hand.contains(card)) return null
 
         player.removeCard(card)
-
         currentTrick.add(player.id to card)
-
-        val payload = mapOf(
-            "playerId" to player.id,
-            "cardSuit" to card.suit.name,
-            "cardRank" to card.rank.name
-        )
 
         if (currentTrick.size == players.size) {
             evaluateTrick()
@@ -95,37 +87,33 @@ data class GameState(
             nextPlayer()
         }
 
-        return payload
+        val safeState = toNetworkSafeCopy()
+        return gson.toJson(safeState)
     }
 
     /* ===================================================== */
-    /* ================= APPLY NETWORK MOVE ================= */
+    /* ================= APPLY NETWORK STATE =============== */
     /* ===================================================== */
 
     /**
-     * يستخدمه جميع الأجهزة عند استلام CARD_PLAYED
+     * يستخدم في الأجهزة CLIENT
      */
-    fun applyNetworkCardPlayed(payload: Map<String, String>) {
+    fun applyFullNetworkState(json: String) {
 
-        val playerId = payload["playerId"] ?: return
-        val suitName = payload["cardSuit"] ?: return
-        val rankName = payload["cardRank"] ?: return
+        val networkState =
+            gson.fromJson(json, GameState::class.java)
 
-        val player = players.find { it.id == playerId } ?: return
+        currentPlayerIndex = networkState.currentPlayerIndex
+        roundNumber = networkState.roundNumber
+        gameInProgress = networkState.gameInProgress
+        winnerId = networkState.winnerId
 
-        val card = Card(
-            suit = Suit.valueOf(suitName),
-            rank = Rank.valueOf(rankName)
-        )
+        currentTrick.clear()
+        currentTrick.addAll(networkState.currentTrick)
 
-        player.removeCard(card)
-
-        currentTrick.add(player.id to card)
-
-        if (currentTrick.size == players.size) {
-            evaluateTrick()
-        } else {
-            nextPlayer()
+        networkState.players.forEach { netPlayer ->
+            players.find { it.id == netPlayer.id }
+                ?.updateFromNetwork(netPlayer)
         }
     }
 
@@ -174,7 +162,7 @@ data class GameState(
     /* ================= DEAL CARDS ======================== */
     /* ===================================================== */
 
-    fun dealCards(cardsPerPlayer: Int = 5) {
+    private fun dealCards(cardsPerPlayer: Int = 5) {
 
         players.forEach { player ->
             val drawn = deck.drawCards(cardsPerPlayer)
@@ -199,7 +187,7 @@ data class GameState(
     /* ================= GAME END ========================== */
     /* ===================================================== */
 
-    fun checkGameWinner(maxScore: Int = 400) {
+    private fun checkGameWinner(maxScore: Int = 400) {
 
         players.find { it.score >= maxScore }?.let {
             winnerId = it.id
@@ -226,6 +214,10 @@ data class GameState(
     /* ================= NETWORK SAFE COPY ================= */
     /* ===================================================== */
 
+    /**
+     * نسخة بدون Deck
+     * Host فقط هو الذي يحتفظ بالـ deck الحقيقي
+     */
     fun toNetworkSafeCopy(): GameState {
 
         val safePlayers =
@@ -236,21 +228,5 @@ data class GameState(
             players = safePlayers,
             deck = Deck(mutableListOf())
         )
-    }
-
-    fun updateFromNetwork(networkState: GameState) {
-
-        currentPlayerIndex = networkState.currentPlayerIndex
-        roundNumber = networkState.roundNumber
-        gameInProgress = networkState.gameInProgress
-        winnerId = networkState.winnerId
-
-        networkState.players.forEach { netPlayer ->
-            players.find { it.id == netPlayer.id }
-                ?.updateFromNetwork(netPlayer)
-        }
-
-        currentTrick.clear()
-        currentTrick.addAll(networkState.currentTrick)
     }
 }
