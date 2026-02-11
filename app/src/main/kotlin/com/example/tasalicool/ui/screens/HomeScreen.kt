@@ -1,17 +1,7 @@
 package com.example.tasalicool.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,14 +11,16 @@ import androidx.navigation.NavHostController
 
 @Composable
 fun HomeScreen(navController: NavHostController) {
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 20.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.Top
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "🃏 tasalicool",
@@ -38,83 +30,93 @@ fun HomeScreen(navController: NavHostController) {
 
         Text(
             text = "ألعاب الورق العربية",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.secondary
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // لعبة 400
         GameCard(
             title = "لعبة 400",
-            description = "لعبة الورق الكلاسيكية\nللاعبين 2-4",
+            description = "للاعبين 2 - 4",
             icon = "🎴",
             onClick = { navController.navigate("game_400") }
         )
 
-        // Solitaire
         GameCard(
             title = "Solitaire",
-            description = "لعبة فردية\nللعب بمفردك",
+            description = "لعبة فردية",
             icon = "🎯",
             onClick = { navController.navigate("solitaire") }
         )
 
-        // Hand Game
         GameCard(
             title = "Hand Game",
-            description = "لعبة اليد\nللاعبين متعددين",
+            description = "لعبة متعددة اللاعبين",
             icon = "🤝",
             onClick = { navController.navigate("hand_game") }
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        // خيارات الاتصال
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
             Button(
                 onClick = { navController.navigate("bluetooth") },
                 modifier = Modifier.weight(1f)
             ) {
-                Text("📱 Bluetooth")
+                Text("Bluetooth")
             }
 
             Button(
                 onClick = { navController.navigate("network") },
                 modifier = Modifier.weight(1f)
             ) {
-                Text("🌐 Network")
+                Text("Network")
             }
         }
     }
 }
 
 @Composable
-fun GameCard(
+private fun GameCard(
     title: String,
     description: String,
     icon: String,
     onClick: () -> Unit
 ) {
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
+            .padding(vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = icon, style = MaterialTheme.typography.displaySmall)
-            Text(text = title, style = MaterialTheme.typography.titleLarge)
+
+            Text(
+                text = icon,
+                style = MaterialTheme.typography.displaySmall
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium,
@@ -122,7 +124,12 @@ fun GameCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onClick,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text("ابدأ اللعب")
             }
         }
