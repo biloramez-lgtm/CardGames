@@ -16,7 +16,6 @@ class Game400Engine(
     val players: List<Player>
 ) : Serializable {
 
-    // ✅ نحفظ Application Context فقط (آمن)
     private val appContext = context.applicationContext
 
     val deck = Deck()
@@ -37,12 +36,8 @@ class Game400Engine(
     var roundActive = false
     var gameWinner: Player? = null
 
-    private val playedCards = mutableSetOf<Card>()
-    private val voidMemory =
-        mutableMapOf<Player, MutableSet<Suit>>()
-
     init {
-        players.forEach { voidMemory[it] = mutableSetOf() }
+        players.forEach { it.tricksWon = 0 }
     }
 
     /* ================= START ROUND ================= */
@@ -50,15 +45,14 @@ class Game400Engine(
     fun startNewRound() {
 
         deck.reset()
-        playedCards.clear()
+        Game400AI.resetMemory()
 
         players.forEach {
             it.resetForNewRound()
             it.addCards(deck.drawCards(Game400Constants.CARDS_PER_PLAYER))
-            voidMemory[it]?.clear()
         }
 
-        runSmartBidding()
+        runHybridBidding()
 
         trickNumber = 0
         currentPlayerIndex = 0
@@ -66,38 +60,14 @@ class Game400Engine(
         currentTrick.clear()
     }
 
-    /* ================= SMART BIDDING ================= */
+    /* ================= HYBRID BIDDING ================= */
 
-    private fun runSmartBidding() {
+    private fun runHybridBidding() {
         players.forEach {
-            if (!it.isLocal)
-                it.bid = calculateFinalBid(it)
+            if (!it.isLocal) {
+                it.bid = Game400AI.calculateBid(it)
+            }
         }
-    }
-
-    private fun calculateFinalBid(player: Player): Int {
-
-        var strength = 0.0
-        val grouped = player.hand.groupBy { it.suit }
-
-        grouped.forEach { (suit, cards) ->
-
-            val high = cards.count { it.rank.value >= 11 }
-            strength += high * 1.3
-
-            if (cards.size >= 5)
-                strength += 1.6
-
-            if (suit == Game400Constants.TRUMP_SUIT)
-                strength += cards.size * 0.6
-        }
-
-        strength += learning.getPlayerAggression() * 0.6
-        strength += elo.rating / 1700.0
-
-        return (strength / 2.0)
-            .roundToInt()
-            .coerceIn(1, 9)
     }
 
     /* ================= AI TURN ================= */
@@ -107,148 +77,26 @@ class Game400Engine(
         val current = getCurrentPlayer()
 
         if (!current.isLocal && roundActive) {
-            val card = chooseFinalMove(current)
+
+            val state = buildGameState()
+            val card = Game400AI.chooseCard(current, state)
+
             playCard(current, card)
             playAITurnIfNeeded()
         }
     }
 
-    private fun chooseFinalMove(player: Player): Card {
+    private fun buildGameState(): GameState {
 
-        val valid =
-            player.hand.filter { isValidPlay(player,it) }
-
-        var best = valid.first()
-        var bestScore = Double.NEGATIVE_INFINITY
-
-        for (card in valid) {
-
-            val probability = calculateWinProbability(player, card)
-            val tactical = tacticalEvaluation(player, card)
-            val stage = stageFactor()
-            val partner = partnerFactor(player)
-            val risk = riskFactor(player)
-
-            val score =
-                probability * 0.40 +
-                tactical * 0.25 +
-                stage * 0.15 +
-                partner * 0.10 -
-                risk * 0.10
-
-            if (score > bestScore) {
-                bestScore = score
-                best = card
-            }
-        }
-
-        return best
-    }
-
-    /* ================= PROBABILITY ================= */
-
-    private fun calculateWinProbability(
-        player: Player,
-        card: Card
-    ): Double {
-
-        val remaining = buildRemainingDeck(player, card)
-
-        val higherSameSuit =
-            remaining.count {
-                it.suit == card.suit &&
-                        it.rank.value > card.rank.value
-            }
-
-        val trumpThreat =
-            remaining.count {
-                it.suit == Game400Constants.TRUMP_SUIT &&
-                        card.suit != Game400Constants.TRUMP_SUIT
-            }
-
-        val total = remaining.size.toDouble()
-        if (total == 0.0) return 1.0
-
-        val risk =
-            (higherSameSuit + trumpThreat * 0.8) / total
-
-        return 1.0 - risk
-    }
-
-    private fun buildRemainingDeck(
-        player: Player,
-        card: Card
-    ): List<Card> {
-
-        val all =
-            Suit.values().flatMap { s ->
-                Rank.values().map { r ->
-                    Card(s, r)
-                }
-            }
-
-        return all
-            .filterNot { playedCards.contains(it) }
-            .filterNot { player.hand.contains(it) }
-            .filterNot { it == card }
-    }
-
-    /* ================= TACTICAL ================= */
-
-    private fun tacticalEvaluation(
-        player: Player,
-        card: Card
-    ): Double {
-
-        var score = card.rank.value / 14.0
-
-        if (card.suit == Game400Constants.TRUMP_SUIT)
-            score += 0.9
-
-        val needed =
-            player.bid - player.tricksWon
-
-        if (needed > 0)
-            score += 0.6
-        else
-            score -= 0.3
-
-        return score
-    }
-
-    private fun stageFactor(): Double {
-        return when {
-            trickNumber < 4 -> 0.3
-            trickNumber < 9 -> 0.6
-            else -> 1.0
-        }
-    }
-
-    private fun partnerFactor(player: Player): Double {
-
-        val partner =
-            players.firstOrNull {
-                it.teamId == player.teamId && it != player
-            } ?: return 0.0
-
-        val currentWinner =
-            currentTrick.maxByOrNull { it.second.rank.value }?.first
-
-        return if (currentWinner == partner)
-            -0.5
-        else 0.3
-    }
-
-    private fun riskFactor(player: Player): Double {
-
-        val needed = player.bid - player.tricksWon
-        val remaining = 13 - trickNumber
-
-        return when {
-            needed > remaining -> 1.0
-            needed <= 0 -> 0.2
-            else -> 0.5
-        }
+        return GameState(
+            players = players,
+            currentPlayerIndex = currentPlayerIndex,
+            deck = deck,
+            currentTrick = currentTrick.toMutableList(),
+            roundNumber = trickNumber + 1,
+            gameInProgress = roundActive,
+            winner = gameWinner
+        )
     }
 
     /* ================= GAME FLOW ================= */
@@ -265,7 +113,9 @@ class Game400Engine(
 
         player.removeCard(card)
         currentTrick.add(player to card)
-        playedCards.add(card)
+
+        // 🧠 AI Memory
+        Game400AI.rememberCard(card)
 
         if (currentTrick.size == 4)
             finishTrick()
