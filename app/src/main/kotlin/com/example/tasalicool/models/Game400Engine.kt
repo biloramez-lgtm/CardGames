@@ -2,6 +2,8 @@ package com.example.tasalicool.models
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import java.io.Serializable
 import kotlin.math.*
 
@@ -17,7 +19,6 @@ class Game400Engine(
 ) : Serializable {
 
     private val appContext = context.applicationContext
-
     val deck = Deck()
 
     private val prefs: SharedPreferences =
@@ -60,8 +61,6 @@ class Game400Engine(
         currentTrick.clear()
     }
 
-    /* ================= HYBRID BIDDING ================= */
-
     private fun runHybridBidding() {
         players.forEach {
             if (!it.isLocal) {
@@ -85,8 +84,11 @@ class Game400Engine(
 
             playCard(current, card)
 
-            // استدعاء متسلسل حتى يصل لدور اللاعب
-            playAITurnIfNeeded()
+            if (roundActive && !getCurrentPlayer().isLocal) {
+                Handler(Looper.getMainLooper()).postDelayed({
+                    playAITurnIfNeeded()
+                }, 300)
+            }
         }
     }
 
@@ -118,7 +120,6 @@ class Game400Engine(
         player.removeCard(card)
         currentTrick.add(player to card)
 
-        // 🔥 تم التعديل ليتوافق مع Legendary AI
         Game400AI.rememberCard(player, card)
 
         if (currentTrick.size == 4)
