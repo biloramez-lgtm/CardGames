@@ -3,6 +3,7 @@ package com.example.tasalicool.models
 import java.io.Serializable
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.random.Random
 
 /* =====================================================
    أنواع الأوراق
@@ -43,12 +44,6 @@ data class Card(
 
     fun isTrump(): Boolean = suit == Suit.HEARTS
 
-    override fun toString(): String =
-        "${rank.displayName}${suit.name.first()}"
-
-    fun getResourceName(): String =
-        "${rank.displayName.lowercase()}_of_${suit.name.lowercase()}"
-
     fun strength(): Int =
         if (isTrump()) rank.value + 20 else rank.value
 }
@@ -79,17 +74,6 @@ data class Deck(
 
     fun drawCard(): Card? =
         if (cards.isNotEmpty()) cards.removeAt(0) else null
-
-    fun drawCards(count: Int): List<Card> {
-        val drawn = mutableListOf<Card>()
-        repeat(count) {
-            drawCard()?.let { drawn.add(it) }
-        }
-        return drawn
-    }
-
-    fun size(): Int = cards.size
-    fun isEmpty(): Boolean = cards.isEmpty()
 }
 
 /* =====================================================
@@ -97,14 +81,11 @@ data class Deck(
    ===================================================== */
 
 enum class AIDifficulty {
-    EASY,
-    NORMAL,
-    HARD,
-    ELITE
+    EASY, NORMAL, HARD, ELITE
 }
 
 /* =====================================================
-   Player (Elite Adaptive Version)
+   Player
    ===================================================== */
 
 data class Player(
@@ -118,34 +99,17 @@ data class Player(
     var teamId: Int = 0,
     val isLocal: Boolean = false,
 
-    // 🔥 جديد
     var difficulty: AIDifficulty = AIDifficulty.NORMAL,
     var rating: Int = 1200
 
 ) : Serializable {
 
-    /* ================= Hand Management ================= */
-
     fun addCards(cards: List<Card>) {
         hand.addAll(cards)
-        sortHand()
+        hand.sortByDescending { it.strength() }
     }
 
-    fun removeCard(card: Card): Boolean =
-        hand.remove(card)
-
-    fun clearHand() = hand.clear()
-
-    fun handSize(): Int = hand.size
-
-    private fun sortHand() {
-        hand.sortWith(
-            compareBy<Card> { it.suit.ordinal }
-                .thenByDescending { it.strength() }
-        )
-    }
-
-    /* ================= Round Reset ================= */
+    fun removeCard(card: Card) = hand.remove(card)
 
     fun resetForNewRound() {
         bid = 0
@@ -156,8 +120,6 @@ data class Player(
     fun incrementTrick() {
         tricksWon++
     }
-
-    /* ================= Scoring ================= */
 
     fun applyRoundScore(): Int {
 
@@ -176,20 +138,13 @@ data class Player(
         return points
     }
 
-    fun isPositiveScore(): Boolean = score > 0
-
-    /* ================= AI Aggression ================= */
-
-    fun aggressionFactor(): Double {
-        return when (difficulty) {
+    fun aggressionFactor(): Double =
+        when (difficulty) {
             AIDifficulty.EASY -> 0.8
             AIDifficulty.NORMAL -> 1.0
             AIDifficulty.HARD -> 1.2
             AIDifficulty.ELITE -> 1.4
         }
-    }
-
-    /* ================= ELO SYSTEM ================= */
 
     fun updateRating(opponentRating: Int, won: Boolean) {
 
@@ -224,7 +179,7 @@ data class RoundResult(
 ) : Serializable
 
 /* =====================================================
-   GameState (Ultimate Stable)
+   GameState (Competitive Engine)
    ===================================================== */
 
 data class GameState(
@@ -250,23 +205,124 @@ data class GameState(
             (currentPlayerIndex + 1) % players.size
     }
 
-    fun totalTricksPlayed(): Int =
-        players.sumOf { it.tricksWon }
+    /* ================= Card Play ================= */
 
-    fun isStateValid(): Boolean {
+    fun playCard(player: Player, card: Card): Boolean {
 
-        if (players.size != 4) return false
-        if (currentPlayerIndex !in players.indices) return false
+        if (!gameInProgress) return false
+        if (player != getCurrentPlayer()) return false
+        if (!player.hand.contains(card)) return false
 
-        val allCards =
-            players.flatMap { it.hand } +
-                    deck.cards +
-                    currentTrick.map { it.second }
+        if (currentTrick.isNotEmpty()) {
+            val leadSuit = currentTrick.first().second.suit
+            val hasLead = player.hand.any { it.suit == leadSuit }
+            if (hasLead && card.suit != leadSuit) return false
+        }
 
-        if (allCards.distinct().size != allCards.size)
-            return false
+        player.removeCard(card)
+        currentTrick.add(player to card)
+
+        if (currentTrick.size == 4) {
+            resolveTrick()
+        } else {
+            nextPlayer()
+        }
 
         return true
+    }
+
+    /* ================= Trick Logic ================= */
+
+    private fun resolveTrick() {
+
+        val leadSuit = currentTrick.first().second.suit
+
+        val winnerPlay = currentTrick.maxByOrNull { (_, card) ->
+            when {
+                card.isTrump() -> card.strength() + 100
+                card.suit == leadSuit -> card.strength()
+                else -> 0
+            }
+        }!!
+
+        val winningPlayer = winnerPlay.first
+        winningPlayer.incrementTrick()
+
+        currentTrick.clear()
+        currentPlayerIndex = players.indexOf(winningPlayer)
+
+        if (players.all { it.hand.isEmpty() }) {
+            endRound()
+        }
+    }
+
+    /* ================= Round End ================= */
+
+    private fun endRound() {
+
+        players.forEach { it.applyRoundScore() }
+
+        recordRoundResult()
+
+        checkGameEnd()
+
+        players.forEach { it.resetForNewRound() }
+        deck.reset()
+    }
+
+    private fun checkGameEnd() {
+
+        val teamScores =
+            players.groupBy { it.teamId }
+                .mapValues { entry ->
+                    entry.value.sumOf { it.score }
+                }
+
+        val winningTeam =
+            teamScores.maxByOrNull { it.value }
+
+        if (winningTeam != null &&
+            winningTeam.value >= 400) {
+
+            gameInProgress = false
+
+            val winners =
+                players.filter {
+                    it.teamId == winningTeam.key
+                }
+
+            winner = winners.first()
+
+            updateElo(winningTeam.key)
+        }
+    }
+
+    /* ================= ELO ================= */
+
+    private fun updateElo(winningTeamId: Int) {
+
+        val team1 =
+            players.filter { it.teamId == 1 }
+
+        val team2 =
+            players.filter { it.teamId == 2 }
+
+        val avg1 =
+            team1.map { it.rating }.average().toInt()
+
+        val avg2 =
+            team2.map { it.rating }.average().toInt()
+
+        val team1Won =
+            winningTeamId == 1
+
+        team1.forEach {
+            it.updateRating(avg2, team1Won)
+        }
+
+        team2.forEach {
+            it.updateRating(avg1, !team1Won)
+        }
     }
 
     fun recordRoundResult() {
