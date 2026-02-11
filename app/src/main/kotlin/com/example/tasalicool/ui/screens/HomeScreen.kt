@@ -61,7 +61,11 @@ fun HomeScreen(navController: NavHostController) {
             /* ================= FEATURED GAME ================= */
 
             FeaturedGameCard(
-                onClick = { navController.navigate("game_400") }
+                onClick = {
+                    navController.navigate("game_400") {
+                        launchSingleTop = true
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -72,7 +76,11 @@ fun HomeScreen(navController: NavHostController) {
                 title = "متابعة اللعبة",
                 description = "استكمال الجولة المحفوظة",
                 icon = "💾",
-                onClick = { navController.navigate("resume_game") }
+                onClick = {
+                    navController.navigate("resume_game") {
+                        launchSingleTop = true
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(30.dp))
@@ -115,7 +123,38 @@ fun HomeScreen(navController: NavHostController) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(40.dp))
+
+            /* ================= ABOUT BUTTON ================= */
+
+            OutlinedButton(
+                onClick = {
+                    navController.navigate("about") {
+                        launchSingleTop = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("حول التطبيق")
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
+
+            /* ================= FOOTER (مهم لغوغل) ================= */
+
+            Text(
+                text = "Developed by Mr million",
+                color = Color.LightGray,
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                text = "Contact: klosemiroslave40@gmail.com",
+                color = Color.LightGray,
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
