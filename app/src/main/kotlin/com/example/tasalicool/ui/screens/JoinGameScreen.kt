@@ -10,7 +10,6 @@ import androidx.navigation.NavHostController
 import com.example.tasalicool.network.NetworkActions
 import com.example.tasalicool.network.NetworkGameClient
 import com.example.tasalicool.network.NetworkMessage
-import kotlinx.coroutines.*
 
 @Composable
 fun JoinGameScreen(navController: NavHostController) {
@@ -19,8 +18,7 @@ fun JoinGameScreen(navController: NavHostController) {
     var statusText by remember { mutableStateOf("غير متصل") }
     var connected by remember { mutableStateOf(false) }
 
-    val scope = rememberCoroutineScope()
-    val client = remember { NetworkGameClient("", 5000) }
+    val client = remember { NetworkGameClient() }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -60,43 +58,25 @@ fun JoinGameScreen(navController: NavHostController) {
         Button(
             onClick = {
 
-                scope.launch(Dispatchers.IO) {
-                    try {
+                client.connect(
+                    hostIp = ipAddress,
+                    port = 5000,
 
-                        val realClient = NetworkGameClient(ipAddress, 5000)
-                        realClient.connect()
+                    onConnected = {
+                        statusText = "تم الاتصال بالسيرفر"
+                        connected = true
+                    },
 
-                        withContext(Dispatchers.Main) {
-                            statusText = "تم الاتصال بالسيرفر"
-                            connected = true
-                        }
+                    onMessageReceived = { message ->
+                        statusText =
+                            "رسالة من السيرفر: ${message.action}"
+                    },
 
-                        // 🔥 إرسال رسالة انضمام
-                        realClient.sendMessage(
-                            NetworkMessage(
-                                playerId = "Player_${System.currentTimeMillis()}",
-                                gameType = "400",
-                                action = NetworkActions.PLAYER_JOINED
-                            )
-                        )
-
-                        // 🔥 الاستماع للرسائل
-                        while (true) {
-                            val message = realClient.receiveMessage()
-                            if (message != null) {
-                                withContext(Dispatchers.Main) {
-                                    statusText =
-                                        "رسالة من السيرفر: ${message.action}"
-                                }
-                            }
-                        }
-
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            statusText = "فشل الاتصال"
-                        }
+                    onDisconnected = {
+                        statusText = "انقطع الاتصال"
+                        connected = false
                     }
-                }
+                )
 
             },
             modifier = Modifier.fillMaxWidth()
