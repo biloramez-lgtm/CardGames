@@ -5,6 +5,7 @@ import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.Socket
+import java.util.concurrent.atomic.AtomicBoolean
 
 class NetworkGameClient {
 
@@ -14,6 +15,8 @@ class NetworkGameClient {
 
     private val gson = Gson()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private val isConnected = AtomicBoolean(false)
 
     var playerId: String = "Player_${System.currentTimeMillis()}"
 
@@ -26,15 +29,18 @@ class NetworkGameClient {
         onMessageReceived: (NetworkMessage) -> Unit = {},
         onDisconnected: () -> Unit = {}
     ) {
+        if (isConnected.get()) return
+
         scope.launch {
             try {
                 socket = Socket(hostIp, port)
                 input = DataInputStream(socket!!.inputStream)
                 output = DataOutputStream(socket!!.outputStream)
 
-                onConnected()
+                isConnected.set(true)
 
-                listen(onMessageReceived, onDisconnected)
+                println("Connected to server: $hostIp:$port")
+                onConnected()
 
                 // إرسال رسالة انضمام
                 sendMessage(
@@ -45,7 +51,11 @@ class NetworkGameClient {
                     )
                 )
 
+                listen(onMessageReceived, onDisconnected)
+
             } catch (e: Exception) {
+                isConnected.set(false)
+                println("Connection failed")
                 onDisconnected()
             }
         }
@@ -59,14 +69,18 @@ class NetworkGameClient {
     ) {
         scope.launch {
             try {
-                while (isActive) {
+                while (isActive && isConnected.get()) {
                     val json = input?.readUTF() ?: break
+
                     val message =
                         gson.fromJson(json, NetworkMessage::class.java)
 
                     onMessageReceived(message)
                 }
             } catch (e: Exception) {
+                println("Disconnected from server")
+            } finally {
+                disconnectInternal()
                 onDisconnected()
             }
         }
@@ -75,18 +89,37 @@ class NetworkGameClient {
     /* ================= SEND ================= */
 
     fun sendMessage(message: NetworkMessage) {
+        if (!isConnected.get()) return
+
         scope.launch {
             try {
                 val json = gson.toJson(message)
                 output?.writeUTF(json)
                 output?.flush()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                disconnectInternal()
+            }
         }
+    }
+
+    /* ================= SEND GAME STATE ================= */
+
+    fun sendGameState(gameStateJson: String) {
+        sendMessage(
+            NetworkMessage(
+                playerId = playerId,
+                gameType = "GAME",
+                action = NetworkActions.GAME_STATE_UPDATE,
+                payload = mapOf("state" to gameStateJson)
+            )
+        )
     }
 
     /* ================= DISCONNECT ================= */
 
     fun disconnect() {
+        if (!isConnected.get()) return
+
         try {
             sendMessage(
                 NetworkMessage(
@@ -97,8 +130,17 @@ class NetworkGameClient {
             )
         } catch (_: Exception) {}
 
-        scope.cancel()
+        disconnectInternal()
+    }
+
+    private fun disconnectInternal() {
+        isConnected.set(false)
 
         try { socket?.close() } catch (_: Exception) {}
+        socket = null
+        input = null
+        output = null
+
+        println("Client connection closed")
     }
 }
