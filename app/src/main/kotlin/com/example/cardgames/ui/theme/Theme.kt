@@ -1,4 +1,4 @@
-package com.example.cardgames.ui.theme
+package com.example.tasalicool.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -54,7 +54,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun CardGamesTheme(
+fun tasalicoolTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
