@@ -14,11 +14,11 @@ import androidx.navigation.NavHostController
 import com.example.tasalicool.models.*
 import com.example.tasalicool.ui.components.CardView
 import com.example.tasalicool.ui.components.CompactCardView
+import kotlinx.coroutines.delay
 
 @Composable
 fun Game400Screen(navController: NavHostController) {
 
-    // 🔥 إنشاء اللاعبين الأربعة (فريقين)
     val engine = remember {
         Game400Engine(
             players = listOf(
@@ -33,9 +33,23 @@ fun Game400Screen(navController: NavHostController) {
     var selectedCard by remember { mutableStateOf<Card?>(null) }
     var uiTrigger by remember { mutableStateOf(0) }
 
+    // بدء الجولة
     LaunchedEffect(Unit) {
         engine.startNewRound()
         uiTrigger++
+    }
+
+    // 🤖 تشغيل AI تلقائي عند تغير الدور
+    LaunchedEffect(uiTrigger) {
+
+        while (
+            engine.roundActive &&
+            !engine.getCurrentPlayer().isLocal
+        ) {
+            delay(700)
+            engine.playAITurnIfNeeded()
+            uiTrigger++
+        }
     }
 
     Column(
@@ -62,7 +76,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // عرض معلومات اللاعبين
+        // معلومات اللاعبين
         engine.players.forEach { player ->
             PlayerInfoCard(
                 player = player,
@@ -72,7 +86,7 @@ fun Game400Screen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // عرض الأكلة الحالية
+        // الأكلة الحالية
         Text("الأكلة الحالية", style = MaterialTheme.typography.titleMedium)
 
         Row(
@@ -89,18 +103,21 @@ fun Game400Screen(navController: NavHostController) {
         Spacer(modifier = Modifier.height(16.dp))
 
         // يد اللاعب المحلي فقط
-        val currentPlayer = engine.players.first { it.isLocal }
+        val localPlayer = engine.players.first { it.isLocal }
 
         Text("أوراقك", style = MaterialTheme.typography.titleMedium)
 
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(currentPlayer.hand) { card ->
+            items(localPlayer.hand) { card ->
                 CompactCardView(
                     card = card,
                     isSelected = card == selectedCard,
-                    onClick = { selectedCard = card }
+                    onClick = {
+                        if (engine.getCurrentPlayer().isLocal)
+                            selectedCard = card
+                    }
                 )
             }
         }
@@ -110,14 +127,16 @@ fun Game400Screen(navController: NavHostController) {
         Button(
             onClick = {
                 selectedCard?.let {
-                    val success = engine.playCard(currentPlayer, it)
+                    val success = engine.playCard(localPlayer, it)
                     if (success) {
                         selectedCard = null
                         uiTrigger++
                     }
                 }
             },
-            enabled = selectedCard != null,
+            enabled = selectedCard != null &&
+                    engine.getCurrentPlayer().isLocal &&
+                    engine.roundActive,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("لعب الورقة")
@@ -146,6 +165,7 @@ fun Game400Screen(navController: NavHostController) {
         }
 
         if (engine.isGameOver()) {
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
