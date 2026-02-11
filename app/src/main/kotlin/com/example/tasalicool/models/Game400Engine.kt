@@ -59,6 +59,9 @@ class Game400Engine(
         currentPlayerIndex = 0
         roundActive = true
         currentTrick.clear()
+
+        // 🔥 Auto Save عند بداية الجولة
+        GameSaveManager.saveGame(appContext, this)
     }
 
     private fun runHybridBidding() {
@@ -127,6 +130,9 @@ class Game400Engine(
         else
             nextPlayer()
 
+        // 🔥 Auto Save بعد كل حركة
+        GameSaveManager.saveGame(appContext, this)
+
         return true
     }
 
@@ -194,6 +200,9 @@ class Game400Engine(
         checkGameWinner()
 
         roundActive = false
+
+        // 🔥 Auto Save بعد نهاية الجولة
+        GameSaveManager.saveGame(appContext, this)
     }
 
     private fun checkGameWinner() {
