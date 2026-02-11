@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CardGames"
+rootProject.name = "tasalicool"
 include(":app")
