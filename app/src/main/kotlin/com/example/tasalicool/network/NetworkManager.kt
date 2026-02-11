@@ -1,101 +1,128 @@
 package com.example.tasalicool.network
 
 import com.google.gson.Gson
+import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.CopyOnWriteArrayList
 
-class NetworkGameServer(val port: Int = 5000) {
-    
+class NetworkGameServer(private val port: Int = 5000) {
+
     private var serverSocket: ServerSocket? = null
-    private val clients = mutableListOf<ClientConnection>()
+    private val clients = CopyOnWriteArrayList<ClientConnection>()
     private val gson = Gson()
 
-    fun startServer() {
-        serverSocket = ServerSocket(port)
-        println("Server started on port $port")
-    }
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    fun stopServer() {
-        serverSocket?.close()
-        clients.forEach { it.socket.close() }
-    }
+    /* ================= START SERVER ================= */
 
-    fun acceptConnections() {
-        Thread {
-            while (true) {
-                try {
-                    val socket = serverSocket?.accept()
-                    if (socket != null) {
-                        val client = ClientConnection(socket)
-                        clients.add(client)
-                        println("Client connected: ${socket.inetAddress}")
-                    }
-                } catch (e: Exception) {
-                    println("Error accepting connection: ${e.message}")
+    fun startServer(
+        onClientConnected: (String) -> Unit = {},
+        onMessageReceived: (NetworkMessage) -> Unit = {}
+    ) {
+        scope.launch {
+            try {
+                serverSocket = ServerSocket(port)
+                println("Server started on port $port")
+
+                while (isActive) {
+                    val socket = serverSocket?.accept() ?: continue
+                    val client = ClientConnection(socket)
+                    clients.add(client)
+
+                    onClientConnected(client.playerId)
+
+                    listenToClient(client, onMessageReceived)
                 }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        }.start()
+        }
     }
+
+    /* ================= LISTEN TO CLIENT ================= */
+
+    private fun listenToClient(
+        client: ClientConnection,
+        onMessageReceived: (NetworkMessage) -> Unit
+    ) {
+        scope.launch {
+            try {
+                while (isActive) {
+                    val json = client.input.readUTF()
+                    val message =
+                        gson.fromJson(json, NetworkMessage::class.java)
+
+                    onMessageReceived(message)
+
+                    // إعادة بث الرسالة لجميع اللاعبين
+                    broadcastMessage(message)
+                }
+
+            } catch (e: Exception) {
+                removeClient(client)
+            }
+        }
+    }
+
+    /* ================= BROADCAST ================= */
 
     fun broadcastMessage(message: NetworkMessage) {
         val json = gson.toJson(message)
+
         clients.forEach { client ->
             try {
-                client.output?.writeUTF(json)
-                client.output?.flush()
+                client.output.writeUTF(json)
+                client.output.flush()
             } catch (e: Exception) {
-                println("Error sending message: ${e.message}")
+                removeClient(client)
             }
         }
     }
-}
 
-class NetworkGameClient(val host: String, val port: Int = 5000) {
-    
-    private var socket: Socket? = null
-    private var input: DataInputStream? = null
-    private var output: DataOutputStream? = null
-    private val gson = Gson()
+    /* ================= REMOVE CLIENT ================= */
 
-    fun connect() {
-        socket = Socket(host, port)
-        input = DataInputStream(socket?.inputStream)
-        output = DataOutputStream(socket?.outputStream)
-        println("Connected to server at $host:$port")
+    private fun removeClient(client: ClientConnection) {
+        clients.remove(client)
+        try { client.socket.close() } catch (_: Exception) {}
+
+        println("Client removed: ${client.playerId}")
     }
 
-    fun disconnect() {
-        socket?.close()
-    }
+    /* ================= STOP SERVER ================= */
 
-    fun sendMessage(message: NetworkMessage) {
-        try {
-            val json = gson.toJson(message)
-            output?.writeUTF(json)
-            output?.flush()
-        } catch (e: Exception) {
-            println("Error sending message: ${e.message}")
+    fun stopServer() {
+        scope.cancel()
+
+        clients.forEach {
+            try { it.socket.close() } catch (_: Exception) {}
         }
-    }
 
-    fun receiveMessage(): NetworkMessage? {
-        return try {
-            val json = input?.readUTF()
-            if (json != null) {
-                gson.fromJson(json, NetworkMessage::class.java)
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            println("Error receiving message: ${e.message}")
-            null
-        }
+        try { serverSocket?.close() } catch (_: Exception) {}
+
+        println("Server stopped")
     }
 }
 
-// نموذج الرسالة عبر الشبكة
+/* ====================================================== */
+/* ================= CLIENT CONNECTION =================== */
+/* ====================================================== */
+
+data class ClientConnection(
+    val socket: Socket
+) {
+    val input: DataInputStream = DataInputStream(socket.inputStream)
+    val output: DataOutputStream = DataOutputStream(socket.outputStream)
+    val playerId: String = socket.inetAddress.hostAddress ?: "Unknown"
+}
+
+/* ====================================================== */
+/* ================= NETWORK MESSAGE ===================== */
+/* ====================================================== */
+
 data class NetworkMessage(
     val playerId: String,
     val gameType: String,
@@ -104,15 +131,10 @@ data class NetworkMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-// فئة الاتصال بالعميل
-data class ClientConnection(
-    val socket: Socket,
-    val input: DataInputStream? = DataInputStream(socket.inputStream),
-    val output: DataOutputStream? = DataOutputStream(socket.outputStream),
-    val playerId: String = socket.inetAddress.hostAddress
-)
+/* ====================================================== */
+/* ================= NETWORK ACTIONS ===================== */
+/* ====================================================== */
 
-// أنواع الإجراءات عبر الشبكة
 object NetworkActions {
     const val PLAYER_JOINED = "PLAYER_JOINED"
     const val PLAYER_LEFT = "PLAYER_LEFT"
