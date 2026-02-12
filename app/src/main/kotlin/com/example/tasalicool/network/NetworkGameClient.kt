@@ -1,6 +1,7 @@
 package com.example.tasalicool.network
 
 import com.example.tasalicool.models.*
+import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -16,6 +17,7 @@ class NetworkGameClient(
     private var output: DataOutputStream? = null
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val gson = Gson()
 
     private val isConnected = AtomicBoolean(false)
 
@@ -40,7 +42,6 @@ class NetworkGameClient(
                 isConnected.set(true)
                 onConnected()
 
-                // إرسال JOIN
                 sendMessage(
                     NetworkMessage(
                         playerId = playerId,
@@ -74,7 +75,7 @@ class NetworkGameClient(
                         }
 
                         GameAction.PONG -> {
-                            // اتصال سليم
+                            // الاتصال سليم
                         }
 
                         else -> {}
@@ -94,33 +95,13 @@ class NetworkGameClient(
     private fun applyGameState(stateJson: String) {
 
         val serverEngine =
-            NetworkMessage.gson.fromJson(
+            gson.fromJson(
                 stateJson,
                 Game400Engine::class.java
             )
 
-        gameEngine.currentPlayerIndex =
-            serverEngine.currentPlayerIndex
-
-        gameEngine.trickNumber =
-            serverEngine.trickNumber
-
-        gameEngine.roundActive =
-            serverEngine.roundActive
-
-        gameEngine.gameWinner =
-            serverEngine.gameWinner
-
-        serverEngine.players.forEach { serverPlayer ->
-
-            val localPlayer =
-                gameEngine.players.find { it.id == serverPlayer.id }
-
-            localPlayer?.updateFromNetwork(serverPlayer)
-        }
-
-        gameEngine.currentTrick.clear()
-        gameEngine.currentTrick.addAll(serverEngine.currentTrick)
+        // 🔥 المزامنة الصحيحة
+        gameEngine.forceSyncFromServer(serverEngine)
     }
 
     /* ================= PLAY CARD ================= */
