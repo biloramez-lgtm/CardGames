@@ -1,7 +1,19 @@
 package com.example.tasalicool.models
 
 enum class GamePhase {
-    PLAYING,      // أثناء اللعب
-    ROUND_END,    // انتهت الجولة
-    GAME_OVER     // انتهت اللعبة بالكامل
+
+    // في انتظار اللاعبين (وضع WiFi)
+    WAITING_FOR_PLAYERS,
+
+    // مرحلة المزايدة
+    BIDDING,
+
+    // أثناء اللعب
+    PLAYING,
+
+    // انتهت الجولة
+    ROUND_END,
+
+    // انتهت اللعبة بالكامل
+    GAME_OVER
 }
