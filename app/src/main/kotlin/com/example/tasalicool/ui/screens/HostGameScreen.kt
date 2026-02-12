@@ -9,18 +9,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.tasalicool.models.Game400Engine
 import com.example.tasalicool.network.NetworkGameServer
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
 @Composable
-fun HostGameScreen(navController: NavHostController) {
+fun HostGameScreen(
+    navController: NavHostController,
+    gameEngine: Game400Engine
+) {
 
     var serverStarted by remember { mutableStateOf(false) }
     var connectedPlayers by remember { mutableStateOf(mutableListOf<String>()) }
     var statusText by remember { mutableStateOf("السيرفر غير مشغل") }
 
-    val server = remember { NetworkGameServer(5000) }
+    val server = remember { NetworkGameServer(5000, gameEngine) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -72,9 +76,12 @@ fun HostGameScreen(navController: NavHostController) {
                                 (connectedPlayers + playerId).toMutableList()
                             statusText = "لاعب متصل: $playerId"
                         },
-                        onMessageReceived = { message ->
-                            statusText =
-                                "تم استلام رسالة: ${message.action}"
+                        onClientDisconnected = { playerId ->
+                            connectedPlayers.remove(playerId)
+                            statusText = "لاعب قطع الاتصال: $playerId"
+                        },
+                        onGameUpdated = {
+                            statusText = "تم تحديث حالة اللعبة"
                         }
                     )
 
