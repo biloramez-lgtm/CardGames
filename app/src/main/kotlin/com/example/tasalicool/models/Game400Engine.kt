@@ -5,47 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import java.io.Serializable
 
-// ===== DECK CLASS =====
-data class Deck(
-    val cards: MutableList<Card> = createFullDeck().toMutableList()
-) : Serializable {
-
-    init {
-        shuffle()
-    }
-
-    fun reset() {
-        cards.clear()
-        cards.addAll(createFullDeck())
-        shuffle()
-    }
-
-    fun shuffle() {
-        cards.shuffle()
-    }
-
-    fun drawCard(): Card? {
-        return if (cards.isNotEmpty()) cards.removeAt(0) else null
-    }
-
-    fun drawCards(count: Int): List<Card> {
-        val result = mutableListOf<Card>()
-        repeat(count) {
-            drawCard()?.let { result.add(it) }
-        }
-        return result
-    }
-
-    companion object {
-        fun createFullDeck(): List<Card> {
-            return Suit.values().flatMap { suit ->
-                Rank.values().map { rank ->
-                    Card(suit, rank)
-                }
-            }
-        }
-    }
-}
+/* ================= CONSTANTS ================= */
 
 object Game400Constants {
     const val CARDS_PER_PLAYER = 13
@@ -75,8 +35,10 @@ class Game400Engine(
     private var appContext: Context? = context?.applicationContext
 
     @Transient
-    private var handler: Handler? = if (context != null) Handler(Looper.getMainLooper()) else null
+    private var handler: Handler? =
+        if (context != null) Handler(Looper.getMainLooper()) else null
 
+    // ✅ نستخدم Deck من Deck.kt
     val deck = Deck()
 
     var currentPlayerIndex = 0
@@ -98,7 +60,7 @@ class Game400Engine(
 
         players.forEach {
             it.resetForNewRound()
-            it.addCards(drawCards(Game400Constants.CARDS_PER_PLAYER))
+            it.addCards(deck.drawCards(Game400Constants.CARDS_PER_PLAYER))
         }
 
         trickNumber = 0
@@ -106,18 +68,7 @@ class Game400Engine(
         roundActive = true
         currentTrick.clear()
 
-        // 🔥 notify network
         listener?.onCardsDealt(players)
-    }
-
-    /* ================= DRAW SAFE ================= */
-
-    private fun drawCards(count: Int): List<Card> {
-        val list = mutableListOf<Card>()
-        repeat(count) {
-            deck.drawCard()?.let { list.add(it) }
-        }
-        return list
     }
 
     /* ================= AI TURN ================= */
@@ -152,10 +103,9 @@ class Game400Engine(
         player.removeCard(card)
         currentTrick.add(player to card)
 
-        // 🔥 notify network
         listener?.onCardPlayed(player, card)
 
-        if (currentTrick.size == 4)
+        if (currentTrick.size == players.size)
             finishTrick()
         else
             nextPlayer()
@@ -186,7 +136,6 @@ class Game400Engine(
         currentTrick.clear()
         trickNumber++
 
-        // 🔥 notify network
         listener?.onTrickFinished(winner, trickNumber)
 
         if (trickNumber >= Game400Constants.CARDS_PER_PLAYER)
