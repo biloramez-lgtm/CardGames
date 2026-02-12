@@ -14,6 +14,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.example.tasalicool.ui.screens.*
 import com.example.tasalicool.ui.theme.TasalicoolTheme
+import androidx.compose.runtime.*
 
 class MainActivity : ComponentActivity() {
 
