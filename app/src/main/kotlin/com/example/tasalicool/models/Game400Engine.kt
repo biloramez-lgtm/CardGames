@@ -21,10 +21,16 @@ class Game400Engine(
     var currentPlayerIndex = 0
         private set
 
+    var dealerIndex = -1
+        private set
+
     var trickNumber = 0
         private set
 
     val currentTrick = mutableListOf<Pair<Player, Card>>()
+
+    var lastTrickWinner: Player? = null
+        private set
 
     var winner: Player? = null
         private set
@@ -39,14 +45,21 @@ class Game400Engine(
 
         deck.reset()
 
+        // تدوير الموزع كل جولة
+        dealerIndex = (dealerIndex + 1) % players.size
+
         players.forEach {
             it.resetForNewRound()
             it.addCards(deck.drawCards(13))
         }
 
         trickNumber = 0
-        currentPlayerIndex = 0
         currentTrick.clear()
+        lastTrickWinner = null
+
+        // يبدأ اللاعب يمين الموزع
+        currentPlayerIndex = (dealerIndex + 1) % players.size
+
         phase = GamePhase.BIDDING
     }
 
@@ -58,16 +71,15 @@ class Game400Engine(
         if (player != getCurrentPlayer()) return false
 
         val minBid = minimumBidFor(player)
-
         if (bid < minBid || bid > 13) return false
 
         player.bid = bid
         nextPlayer()
 
-        // إذا الجميع طلب
         if (players.all { it.bid > 0 }) {
             phase = GamePhase.PLAYING
-            currentPlayerIndex = 0
+            // يبدأ اللعب أيضاً من يمين الموزع
+            currentPlayerIndex = (dealerIndex + 1) % players.size
         }
 
         return true
@@ -92,10 +104,11 @@ class Game400Engine(
         player.removeCard(card)
         currentTrick.add(player to card)
 
-        if (currentTrick.size == 4)
+        if (currentTrick.size == 4) {
             finishTrick()
-        else
+        } else {
             nextPlayer()
+        }
 
         return true
     }
@@ -105,19 +118,29 @@ class Game400Engine(
         val trickWinner = determineTrickWinner()
         trickWinner.incrementTrick()
 
+        lastTrickWinner = trickWinner
         currentPlayerIndex = players.indexOf(trickWinner)
-        currentTrick.clear()
-        trickNumber++
 
-        if (trickNumber >= 13)
+        trickNumber++
+        // لا نمسح الأكلة هنا (مهم)
+    }
+
+    /**
+     * تُستدعى من الـ UI بعد عرض الفائز وتأخير بسيط
+     */
+    fun clearTrickAfterDelay() {
+
+        currentTrick.clear()
+
+        if (trickNumber >= 13) {
             finishRound()
+        }
     }
 
     private fun determineTrickWinner(): Player {
 
         val leadSuit = currentTrick.first().second.suit
 
-        // الحكم ثابت ♥
         val trumpCards = currentTrick.filter {
             it.second.suit == Suit.HEARTS
         }
@@ -146,7 +169,7 @@ class Game400Engine(
 
     private fun finishRound() {
 
-        // كبوت (13 ناجحة)
+        // كبوت ناجحة
         players.forEach { player ->
             if (player.bid == 13 && player.tricksWon == 13) {
                 winner = player
@@ -155,13 +178,14 @@ class Game400Engine(
             }
         }
 
-        // حساب النقاط عبر Player نفسه
+        // حساب النقاط
         players.forEach { it.applyRoundScore() }
 
         checkGameWinner()
 
-        if (phase != GamePhase.GAME_OVER)
+        if (phase != GamePhase.GAME_OVER) {
             phase = GamePhase.ROUND_END
+        }
     }
 
     private fun checkGameWinner() {
