@@ -1,5 +1,6 @@
 package com.example.tasalicool.network
 
+import com.example.tasalicool.models.*
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.DataInputStream
@@ -10,7 +11,10 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-class NetworkGameServer(private val port: Int = 5000) {
+class NetworkGameServer(
+    private val port: Int = 5000,
+    private val gameEngine: Game400Engine
+) {
 
     private var serverSocket: ServerSocket? = null
     private val clients = CopyOnWriteArrayList<ClientConnection>()
@@ -26,7 +30,7 @@ class NetworkGameServer(private val port: Int = 5000) {
     fun startServer(
         onClientConnected: (String) -> Unit = {},
         onClientDisconnected: (String) -> Unit = {},
-        onMessageReceived: (NetworkMessage) -> Unit = {}
+        onGameUpdated: () -> Unit = {}
     ) {
         if (isRunning.get()) return
 
@@ -47,15 +51,9 @@ class NetworkGameServer(private val port: Int = 5000) {
 
                     onClientConnected(playerId)
 
-                    broadcastMessage(
-                        NetworkMessage(
-                            playerId = playerId,
-                            gameType = "TASALI",
-                            action = NetworkActions.PLAYER_JOINED
-                        )
-                    )
+                    broadcastGameState()
 
-                    listenToClient(client, onClientDisconnected, onMessageReceived)
+                    listenToClient(client, onClientDisconnected, onGameUpdated)
                 }
 
             } catch (e: Exception) {
@@ -69,28 +67,22 @@ class NetworkGameServer(private val port: Int = 5000) {
     private fun listenToClient(
         client: ClientConnection,
         onClientDisconnected: (String) -> Unit,
-        onMessageReceived: (NetworkMessage) -> Unit
+        onGameUpdated: () -> Unit
     ) {
         scope.launch {
             try {
                 while (isActive && isRunning.get()) {
 
                     val json = client.input.readUTF()
-                    val message = gson.fromJson(json, NetworkMessage::class.java)
-
-                    onMessageReceived(message)
+                    val message =
+                        gson.fromJson(json, NetworkMessage::class.java)
 
                     when (message.action) {
 
-                        NetworkActions.PLAY_CARD,
-                        NetworkActions.GAME_STATE_UPDATE,
-                        NetworkActions.DEAL_CARDS,
-                        NetworkActions.MESSAGE -> {
-
-                            broadcastMessage(
-                                message,
-                                excludePlayer = client.playerId
-                            )
+                        NetworkActions.PLAY_CARD -> {
+                            handlePlayCard(message)
+                            broadcastGameState()
+                            onGameUpdated()
                         }
 
                         NetworkActions.PLAYER_LEFT -> {
@@ -107,23 +99,39 @@ class NetworkGameServer(private val port: Int = 5000) {
         }
     }
 
-    /* ================= BROADCAST ================= */
+    /* ================= HANDLE PLAY ================= */
 
-    fun broadcastMessage(
-        message: NetworkMessage,
-        excludePlayer: String? = null
-    ) {
+    private fun handlePlayCard(message: NetworkMessage) {
+
+        val cardString = message.data ?: return
+        val player = gameEngine.players
+            .find { it.id == message.playerId } ?: return
+
+        val card = Card.fromString(cardString) ?: return
+
+        gameEngine.playCard(player, card)
+    }
+
+    /* ================= BROADCAST GAME STATE ================= */
+
+    private fun broadcastGameState() {
+
+        val stateJson = gson.toJson(gameEngine)
+
+        val message = NetworkMessage(
+            playerId = "SERVER",
+            gameType = "GAME400",
+            action = NetworkActions.GAME_STATE_UPDATE,
+            data = stateJson
+        )
+
         val json = gson.toJson(message)
 
         clients.forEach { client ->
-            if (client.playerId == excludePlayer) return@forEach
-
             try {
                 client.output.writeUTF(json)
                 client.output.flush()
-            } catch (_: Exception) {
-                removeClient(client) {}
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -136,14 +144,6 @@ class NetworkGameServer(private val port: Int = 5000) {
         clients.remove(client)
 
         try { client.socket.close() } catch (_: Exception) {}
-
-        broadcastMessage(
-            NetworkMessage(
-                playerId = client.playerId,
-                gameType = "TASALI",
-                action = NetworkActions.PLAYER_LEFT
-            )
-        )
 
         onClientDisconnected(client.playerId)
     }
