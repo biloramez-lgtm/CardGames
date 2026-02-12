@@ -2,23 +2,21 @@ package com.example.tasalicool.models
 
 import java.io.Serializable
 
-/* ================= CONSTANTS ================= */
-
-object Game400Constants {
-    const val CARDS_PER_PLAYER = 13
-    const val WIN_SCORE = 41
-    val TRUMP_SUIT = Suit.HEARTS
+enum class GamePhase {
+    BIDDING,
+    PLAYING,
+    ROUND_END,
+    GAME_OVER
 }
-
-/* ================= GAME ENGINE ================= */
 
 class Game400Engine(
     val players: MutableList<Player> = initializeDefaultPlayers()
 ) : Serializable {
-    
+
     private val deck = Deck()
 
-    /* ================= STATE ================= */
+    var phase = GamePhase.BIDDING
+        private set
 
     var currentPlayerIndex = 0
         private set
@@ -26,56 +24,74 @@ class Game400Engine(
     var trickNumber = 0
         private set
 
-    var currentRound = 1
-        private set
-
     val currentTrick = mutableListOf<Pair<Player, Card>>()
 
-    var roundActive = false
-        private set
-
-    var gameWinner: Player? = null
+    var winner: Player? = null
         private set
 
     init {
-        players.forEach { it.tricksWon = 0 }
+        startNewRound()
     }
 
-    /* ================= START ROUND ================= */
+    /* ================= ROUND ================= */
 
     fun startNewRound() {
-
-        if (isGameOver()) return
-
         deck.reset()
 
         players.forEach {
             it.resetForNewRound()
-            it.addCards(
-                deck.drawCards(Game400Constants.CARDS_PER_PLAYER)
-            )
+            it.hand.clear()
+            it.addCards(deck.drawCards(13))
         }
 
         trickNumber = 0
         currentPlayerIndex = 0
-        roundActive = true
         currentTrick.clear()
-        gameWinner = null
+        phase = GamePhase.BIDDING
     }
 
-    /* ================= GAME FLOW ================= */
+    /* ================= BIDDING ================= */
+
+    fun placeBid(player: Player, bid: Int): Boolean {
+
+        if (phase != GamePhase.BIDDING) return false
+        if (player != getCurrentPlayer()) return false
+
+        val minBid = minimumBidFor(player)
+
+        if (bid < minBid || bid > 13) return false
+
+        player.bid = bid
+        nextPlayer()
+
+        if (players.all { it.bid > 0 }) {
+            phase = GamePhase.PLAYING
+            currentPlayerIndex = 0
+        }
+
+        return true
+    }
+
+    private fun minimumBidFor(player: Player): Int {
+        return when {
+            player.score < 30 -> 2
+            player.score < 40 -> 3
+            else -> 4
+        }
+    }
+
+    /* ================= PLAY ================= */
 
     fun playCard(player: Player, card: Card): Boolean {
 
-        if (!roundActive) return false
-        if (isGameOver()) return false
+        if (phase != GamePhase.PLAYING) return false
         if (player != getCurrentPlayer()) return false
         if (!isValidPlay(player, card)) return false
 
         player.removeCard(card)
         currentTrick.add(player to card)
 
-        if (currentTrick.size == players.size)
+        if (currentTrick.size == 4)
             finishTrick()
         else
             nextPlayer()
@@ -83,132 +99,106 @@ class Game400Engine(
         return true
     }
 
+    private fun finishTrick() {
+
+        val winnerPlayer = determineTrickWinner()
+        winnerPlayer.tricksWon++
+
+        currentPlayerIndex = players.indexOf(winnerPlayer)
+        currentTrick.clear()
+        trickNumber++
+
+        if (trickNumber >= 13)
+            finishRound()
+    }
+
+    private fun determineTrickWinner(): Player {
+
+        val leadSuit = currentTrick.first().second.suit
+
+        val trumpCards = currentTrick.filter {
+            it.second.suit == Suit.HEARTS
+        }
+
+        return if (trumpCards.isNotEmpty()) {
+            trumpCards.maxBy { it.second.rank.value }.first
+        } else {
+            currentTrick
+                .filter { it.second.suit == leadSuit }
+                .maxBy { it.second.rank.value }
+                .first
+        }
+    }
+
+    private fun isValidPlay(player: Player, card: Card): Boolean {
+
+        if (currentTrick.isEmpty()) return true
+
+        val leadSuit = currentTrick.first().second.suit
+        val hasSuit = player.hand.any { it.suit == leadSuit }
+
+        return if (hasSuit) card.suit == leadSuit else true
+    }
+
+    /* ================= SCORING ================= */
+
+    private fun finishRound() {
+
+        players.forEach { player ->
+
+            if (player.bid == 13 && player.tricksWon == 13) {
+                winner = player
+                phase = GamePhase.GAME_OVER
+                return
+            }
+
+            if (player.tricksWon >= player.bid)
+                player.score += player.bid
+            else
+                player.score -= player.bid
+        }
+
+        checkGameWinner()
+
+        if (phase != GamePhase.GAME_OVER)
+            phase = GamePhase.ROUND_END
+    }
+
+    private fun checkGameWinner() {
+
+        players.forEach { player ->
+            val partner = getPartner(player)
+
+            if (player.score >= 41 && partner.score > 0) {
+                winner = player
+                phase = GamePhase.GAME_OVER
+            }
+        }
+    }
+
+    /* ================= HELPERS ================= */
+
     fun getCurrentPlayer(): Player =
         players[currentPlayerIndex]
-
-    fun isCurrentPlayerAI(): Boolean =
-        getCurrentPlayer().isAI()
 
     private fun nextPlayer() {
         currentPlayerIndex =
             (currentPlayerIndex + 1) % players.size
     }
 
-    /* ================= TRICK ================= */
-
-    private fun finishTrick() {
-
-        val winnerPair = determineTrickWinner() ?: return
-        val winner = winnerPair.first
-
-        winner.incrementTrick()
-
-        currentPlayerIndex =
-            players.indexOf(winner)
-
-        currentTrick.clear()
-        trickNumber++
-
-        if (trickNumber >= Game400Constants.CARDS_PER_PLAYER)
-            finishRound()
+    private fun getPartner(player: Player): Player {
+        val index = players.indexOf(player)
+        return players[(index + 2) % 4]
     }
-
-    private fun determineTrickWinner(): Pair<Player, Card>? {
-
-        if (currentTrick.isEmpty()) return null
-
-        val leadSuit = currentTrick.first().second.suit
-
-        val trumpCards =
-            currentTrick.filter {
-                it.second.suit == Game400Constants.TRUMP_SUIT
-            }
-
-        return if (trumpCards.isNotEmpty())
-            trumpCards.maxByOrNull { it.second.strength() }
-        else
-            currentTrick
-                .filter { it.second.suit == leadSuit }
-                .maxByOrNull { it.second.strength() }
-    }
-
-    /* ================= ROUND END ================= */
-
-    private fun finishRound() {
-
-        players.forEach { it.applyRoundScore() }
-
-        roundActive = false
-        currentRound++
-
-        checkGameWinner()
-    }
-
-    private fun checkGameWinner() {
-        players.forEach {
-            if (it.score >= Game400Constants.WIN_SCORE) {
-                gameWinner = it
-            }
-        }
-    }
-
-    /* ================= VALID PLAY ================= */
-
-    private fun isValidPlay(
-        player: Player,
-        card: Card
-    ): Boolean {
-
-        if (currentTrick.isEmpty()) return true
-
-        val leadSuit =
-            currentTrick.first().second.suit
-
-        val hasSuit =
-            player.hand.any { it.suit == leadSuit }
-
-        return if (hasSuit)
-            card.suit == leadSuit
-        else true
-    }
-
-    /* ================= NETWORK SUPPORT ================= */
-
-    fun forceSyncFromServer(serverEngine: Game400Engine) {
-
-        currentPlayerIndex = serverEngine.currentPlayerIndex
-        trickNumber = serverEngine.trickNumber
-        currentRound = serverEngine.currentRound
-        roundActive = serverEngine.roundActive
-        gameWinner = serverEngine.gameWinner
-
-        currentTrick.clear()
-        currentTrick.addAll(serverEngine.currentTrick)
-
-        serverEngine.players.forEach { serverPlayer ->
-
-            val localPlayer =
-                players.find { it.id == serverPlayer.id }
-
-            localPlayer?.updateFromNetwork(serverPlayer)
-        }
-    }
-
-    /* ================= STATUS ================= */
-
-    fun isGameOver(): Boolean =
-        gameWinner != null
-
-    /* ================= DEFAULT PLAYERS ================= */
 
     companion object {
 
         fun initializeDefaultPlayers(): MutableList<Player> {
             return mutableListOf(
-                Player(name = "You", type = PlayerType.HUMAN),
-                Player(name = "AI 1", type = PlayerType.AI),
-                Player(name = "AI 2", type = PlayerType.AI),
-                Player(name = "AI 3", type = PlayerType.AI)
+                Player(name = "You", teamId = 1),
+                Player(name = "AI 1", teamId = 2),
+                Player(name = "AI 2", teamId = 1),
+                Player(name = "AI 3", teamId = 2)
             )
         }
     }
