@@ -42,16 +42,17 @@ class NetworkGameClient(
                 isConnected.set(true)
                 onConnected()
 
+                // إرسال JOIN رسمي
                 sendMessage(
-                    NetworkMessage(
+                    NetworkMessage.createJoin(
                         playerId = playerId,
-                        action = GameAction.JOIN
+                        name = "Player"
                     )
                 )
 
                 listen(onDisconnected)
 
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 isConnected.set(false)
                 onDisconnected()
             }
@@ -71,11 +72,17 @@ class NetworkGameClient(
                     when (message.action) {
 
                         GameAction.SYNC_STATE -> {
-                            message.payload?.let { applyGameState(it) }
+                            message.payload?.let {
+                                applyGameState(it)
+                            }
+                        }
+
+                        GameAction.ERROR -> {
+                            println("❌ Server error: ${message.payload}")
                         }
 
                         GameAction.PONG -> {
-                            // الاتصال سليم
+                            // اتصال سليم
                         }
 
                         else -> {}
@@ -100,7 +107,7 @@ class NetworkGameClient(
                 Game400Engine::class.java
             )
 
-        // 🔥 المزامنة الصحيحة
+        // مزامنة آمنة
         gameEngine.forceSyncFromServer(serverEngine)
     }
 
@@ -110,13 +117,30 @@ class NetworkGameClient(
 
         if (!isConnected.get()) return
 
-        sendMessage(
-            NetworkMessage(
-                playerId = playerId,
-                action = GameAction.PLAY_CARD,
-                payload = card.toString()
-            )
+        // منع اللعب إذا ليس دورك
+        if (gameEngine.getCurrentPlayer().id != playerId) return
+
+        val message = NetworkMessage.createPlayCard(
+            playerId = playerId,
+            cardString = card.toString(),
+            trick = gameEngine.trickNumber
         )
+
+        sendMessage(message)
+    }
+
+    /* ================= PLACE BID ================= */
+
+    fun placeBid(bid: Int) {
+
+        if (!isConnected.get()) return
+
+        val message = NetworkMessage.createPlaceBid(
+            playerId = playerId,
+            bidValue = bid
+        )
+
+        sendMessage(message)
     }
 
     /* ================= REQUEST SYNC ================= */
@@ -153,16 +177,14 @@ class NetworkGameClient(
         if (!isConnected.get()) return
 
         sendMessage(
-            NetworkMessage(
-                playerId = playerId,
-                action = GameAction.LEAVE
-            )
+            NetworkMessage.createLeave(playerId)
         )
 
         disconnectInternal()
     }
 
     private fun disconnectInternal() {
+
         isConnected.set(false)
 
         try { socket?.close() } catch (_: Exception) {}
