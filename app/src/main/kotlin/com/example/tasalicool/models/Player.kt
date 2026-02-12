@@ -93,47 +93,38 @@ data class Player(
     }
 
     /* ===================================================== */
-/* ================= ROUND SCORE ======================= */
-/* ===================================================== */
+    /* ================= ROUND SCORE ======================= */
+    /* ===================================================== */
 
-fun applyRoundScore(): Int {
+    fun applyRoundScore(): Int {
 
-    val points = if (tricksWon >= bid) {
-        bid
-    } else {
-        -bid
+        val points = if (tricksWon >= bid) {
+            bid
+        } else {
+            -bid
+        }
+
+        score += points
+        return points
     }
-
-    score += points
-    return points
-}
 
     /* ===================================================== */
     /* ================= NETWORK SUPPORT =================== */
     /* ===================================================== */
 
-    /**
-     * تحديث اللاعب من بيانات السيرفر
-     * السيرفر هو المصدر الوحيد للحقيقة
-     */
     fun updateFromNetwork(serverPlayer: Player) {
 
         score = serverPlayer.score
         bid = serverPlayer.bid
         tricksWon = serverPlayer.tricksWon
         teamId = serverPlayer.teamId
-        difficulty = serverPlayer.difficulty
         rating = serverPlayer.rating
 
-        // تحديث اليد بالكامل
         hand.clear()
         hand.addAll(serverPlayer.hand)
         sortHand()
     }
 
-    /**
-     * نسخة آمنة للحالة لإرسالها عبر الشبكة
-     */
     fun cloneState(): Player {
         return copy(
             hand = hand.toMutableList()
@@ -141,29 +132,12 @@ fun applyRoundScore(): Int {
     }
 
     /* ===================================================== */
-    /* ================= AI HELPERS ======================== */
-    /* ===================================================== */
-
-    fun aggressionFactor(): Double =
-        when (difficulty) {
-            AIDifficulty.EASY -> 0.8
-            AIDifficulty.NORMAL -> 1.0
-            AIDifficulty.HARD -> 1.2
-            AIDifficulty.ELITE -> 1.4
-        }
-
-    /* ===================================================== */
     /* ================= ELO RATING ======================== */
     /* ===================================================== */
 
     fun updateRating(opponentRating: Int, won: Boolean) {
 
-        val kFactor = when (difficulty) {
-            AIDifficulty.EASY -> 16
-            AIDifficulty.NORMAL -> 24
-            AIDifficulty.HARD -> 32
-            AIDifficulty.ELITE -> 40
-        }
+        val kFactor = 32
 
         val expected =
             1.0 / (1 + 10.0.pow(
