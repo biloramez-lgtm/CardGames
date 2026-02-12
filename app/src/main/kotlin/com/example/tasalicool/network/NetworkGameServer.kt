@@ -1,6 +1,7 @@
 package com.example.tasalicool.network
 
 import com.example.tasalicool.models.*
+import com.example.tasalicool.game.AdvancedAI
 import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -50,7 +51,6 @@ class NetworkGameServer(
                     onClientConnected(playerId)
 
                     listenToClient(client, onClientDisconnected, onGameUpdated)
-
                     sendFullStateTo(client)
                 }
 
@@ -75,10 +75,6 @@ class NetworkGameServer(
                     val message = NetworkMessage.fromJson(json)
 
                     when (message.action) {
-
-                        GameAction.JOIN -> {
-                            sendFullStateTo(client)
-                        }
 
                         GameAction.PLAY_CARD -> {
                             handlePlayCard(client, message)
@@ -122,7 +118,7 @@ class NetworkGameServer(
         message: NetworkMessage
     ) {
 
-        if (!gameEngine.roundActive) return
+        if (gameEngine.phase != GamePhase.PLAYING) return
 
         val cardString = message.payload ?: return
 
@@ -149,6 +145,25 @@ class NetworkGameServer(
 
         if (!success) {
             sendError(client, "Illegal move")
+            return
+        }
+
+        // بعد كل حركة نشغّل AI إذا دوره
+        processAITurns()
+    }
+
+    /* ================= AI PROCESS ================= */
+
+    private fun processAITurns() {
+
+        while (
+            gameEngine.phase == GamePhase.PLAYING &&
+            gameEngine.isAITurn()
+        ) {
+            val aiPlayer = gameEngine.getCurrentPlayer()
+
+            val card = AdvancedAI.chooseCard(aiPlayer, gameEngine)
+            gameEngine.playCard(aiPlayer, card)
         }
     }
 
@@ -162,7 +177,7 @@ class NetworkGameServer(
         val message = NetworkMessage.createStateSync(
             hostId = "SERVER",
             stateJson = stateJson,
-            round = gameEngine.currentRound,
+            round = 0,
             trick = gameEngine.trickNumber
         )
 
@@ -179,7 +194,7 @@ class NetworkGameServer(
         val message = NetworkMessage.createStateSync(
             hostId = "SERVER",
             stateJson = stateJson,
-            round = gameEngine.currentRound,
+            round = 0,
             trick = gameEngine.trickNumber
         )
 
