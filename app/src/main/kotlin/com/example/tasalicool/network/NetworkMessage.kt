@@ -63,3 +63,8 @@ enum class GameAction {
     // ماسج دردشة
     MESSAGE
 }
+
+// دالة مساعدة عامة
+fun generateId(): String {
+    return System.currentTimeMillis().toString() + (1000..9999).random()
+}
