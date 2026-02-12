@@ -12,28 +12,27 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 class NetworkGameServer(
-    private val port: Int = 5000,
-    private val gameEngine: Game400Engine
+    private val port: Int = 5000
 ) {
 
     private var serverSocket: ServerSocket? = null
     private val clients = CopyOnWriteArrayList<ClientConnection>()
-
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
     private val isRunning = AtomicBoolean(false)
     private val playerCounter = AtomicInteger(0)
 
-    // 🔥 ربط الشبكة باللاعب الحقيقي داخل المحرك
+    private val lobby = LobbyManager()
+
+    private var gameEngine: Game400Engine? = null
+
     private val networkPlayerMap = mutableMapOf<String, Player>()
 
-    /* ================= START ================= */
+    /* ===================================================== */
+    /* ================= START SERVER ======================= */
+    /* ===================================================== */
 
-    fun startServer(
-        onClientConnected: (String) -> Unit = {},
-        onClientDisconnected: (String) -> Unit = {},
-        onGameUpdated: () -> Unit = {}
-    ) {
+    fun startServer() {
+
         if (isRunning.get()) return
 
         scope.launch {
@@ -41,55 +40,27 @@ class NetworkGameServer(
                 serverSocket = ServerSocket(port)
                 isRunning.set(true)
 
-                println("🔥 Server started on port $port")
-
                 while (isActive && isRunning.get()) {
 
                     val socket = serverSocket?.accept() ?: continue
-
                     val networkId = "P${playerCounter.incrementAndGet()}"
-                    val client = ClientConnection(socket, networkId)
 
+                    val client = ClientConnection(socket, networkId)
                     clients.add(client)
 
-                    // 🔥 ربطه بلاعب حقيقي في المحرك
-                    assignPlayerToClient(networkId)
-
-                    onClientConnected(networkId)
-
-                    listenToClient(client, onClientDisconnected, onGameUpdated)
-                    sendFullStateTo(client)
+                    listenToClient(client)
                 }
 
-            } catch (e: Exception) {
-                println("❌ Server error: ${e.message}")
-            }
+            } catch (_: Exception) {}
         }
     }
 
-    /* ================= PLAYER ASSIGN ================= */
+    /* ===================================================== */
+    /* ================= LISTEN ============================= */
+    /* ===================================================== */
 
-    private fun assignPlayerToClient(networkId: String) {
+    private fun listenToClient(client: ClientConnection) {
 
-        val unassignedPlayer =
-            gameEngine.players.firstOrNull {
-                it.type == PlayerType.HUMAN &&
-                !networkPlayerMap.containsValue(it)
-            }
-
-        if (unassignedPlayer != null) {
-            networkPlayerMap[networkId] = unassignedPlayer
-            println("✅ $networkId assigned to ${unassignedPlayer.name}")
-        }
-    }
-
-    /* ================= LISTEN ================= */
-
-    private fun listenToClient(
-        client: ClientConnection,
-        onClientDisconnected: (String) -> Unit,
-        onGameUpdated: () -> Unit
-    ) {
         scope.launch {
             try {
                 while (isActive && isRunning.get()) {
@@ -99,10 +70,21 @@ class NetworkGameServer(
 
                     when (message.action) {
 
+                        GameAction.JOIN -> {
+                            handleJoin(client, message)
+                        }
+
+                        GameAction.READY -> {
+                            lobby.setReady(client.playerId, true)
+                            broadcastLobby()
+                        }
+
+                        GameAction.START_GAME -> {
+                            handleStartGame(client)
+                        }
+
                         GameAction.PLAY_CARD -> {
                             handlePlayCard(client, message)
-                            broadcastFullState()
-                            onGameUpdated()
                         }
 
                         GameAction.REQUEST_SYNC -> {
@@ -110,7 +92,7 @@ class NetworkGameServer(
                         }
 
                         GameAction.LEAVE -> {
-                            removeClient(client, onClientDisconnected)
+                            removeClient(client)
                         }
 
                         else -> {}
@@ -118,85 +100,174 @@ class NetworkGameServer(
                 }
 
             } catch (_: Exception) {
-                removeClient(client, onClientDisconnected)
+                removeClient(client)
             }
         }
     }
 
-    /* ================= HANDLE PLAY ================= */
+    /* ===================================================== */
+    /* ================= JOIN =============================== */
+    /* ===================================================== */
+
+    private fun handleJoin(
+        client: ClientConnection,
+        message: NetworkMessage
+    ) {
+
+        val name = message.playerName ?: "Player"
+
+        val lobbyPlayer = lobby.addPlayer(client.playerId, name)
+
+        if (lobbyPlayer == null) {
+            // دخل أثناء اللعب → انتظار
+            sendToClient(
+                client,
+                NetworkMessage.createError(
+                    client.playerId,
+                    "Game already started. Waiting next round."
+                )
+            )
+            return
+        }
+
+        broadcastLobby()
+    }
+
+    /* ===================================================== */
+    /* ================= START GAME ========================= */
+    /* ===================================================== */
+
+    private fun handleStartGame(client: ClientConnection) {
+
+        val host = lobby.getHost() ?: return
+        if (host.networkId != client.playerId) return
+
+        if (!lobby.startGame()) return
+
+        gameEngine = lobby.createGameEngine()
+        gameEngine?.startGameFromLobby()
+
+        // ربط الشبكة باللاعبين
+        mapNetworkPlayersToEngine()
+
+        broadcastFullState()
+    }
+
+    /* ===================================================== */
+    /* ================= MAP PLAYERS ======================== */
+    /* ===================================================== */
+
+    private fun mapNetworkPlayersToEngine() {
+
+        val engine = gameEngine ?: return
+
+        networkPlayerMap.clear()
+
+        val humanPlayers =
+            engine.players.filter { it.type == PlayerType.HUMAN }
+
+        lobby.getPlayers().forEachIndexed { index, lobbyPlayer ->
+            if (index < humanPlayers.size) {
+                networkPlayerMap[lobbyPlayer.networkId] =
+                    humanPlayers[index]
+            }
+        }
+    }
+
+    /* ===================================================== */
+    /* ================= PLAY CARD ========================== */
+    /* ===================================================== */
 
     private fun handlePlayCard(
         client: ClientConnection,
         message: NetworkMessage
     ) {
 
-        if (gameEngine.phase != GamePhase.PLAYING) return
+        val engine = gameEngine ?: return
+        if (engine.phase != GamePhase.PLAYING) return
 
-        val player = networkPlayerMap[client.playerId]
-        if (player == null) {
-            sendError(client, "Player not assigned")
-            return
-        }
+        val player = networkPlayerMap[client.playerId] ?: return
+        if (engine.getCurrentPlayer() != player) return
 
-        if (gameEngine.getCurrentPlayer() != player) {
-            sendError(client, "Not your turn")
-            return
-        }
+        val card = Card.fromString(message.payload ?: return) ?: return
 
-        val cardString = message.payload ?: return
-        val card = Card.fromString(cardString)
-        if (card == null) {
-            sendError(client, "Invalid card")
-            return
-        }
-
-        val success = gameEngine.playCard(player, card)
-        if (!success) {
-            sendError(client, "Illegal move")
-            return
-        }
+        if (!engine.playCard(player, card)) return
 
         processAITurns()
 
-        // 🔥 عرض الفائز 1.5 ثانية
-        if (gameEngine.currentTrick.isEmpty() &&
-            gameEngine.lastTrickWinner != null
+        broadcastFullState()
+
+        // عرض الفائز 1.5 ثانية
+        if (engine.currentTrick.isEmpty() &&
+            engine.lastTrickWinner != null
         ) {
             scope.launch {
                 delay(1500)
-                gameEngine.clearTrickAfterDelay()
+
+                engine.clearTrickAfterDelay()
+
+                // 🔥 استبدال AI بلاعبين منتظرين
+                lobby.replaceAIWithWaitingPlayers(engine)
+
                 broadcastFullState()
             }
         }
     }
 
-    /* ================= AI ================= */
+    /* ===================================================== */
+    /* ================= AI ================================ */
+    /* ===================================================== */
 
     private fun processAITurns() {
 
+        val engine = gameEngine ?: return
+
         while (
-            gameEngine.phase == GamePhase.PLAYING &&
-            gameEngine.isAITurn()
+            engine.phase == GamePhase.PLAYING &&
+            engine.isAITurn()
         ) {
-            val aiPlayer = gameEngine.getCurrentPlayer()
-            val card = AdvancedAI.chooseCard(aiPlayer, gameEngine)
-            gameEngine.playCard(aiPlayer, card)
+            val ai = engine.getCurrentPlayer()
+            val card = AdvancedAI.chooseCard(ai, engine)
+            engine.playCard(ai, card)
         }
     }
 
-    /* ================= STATE ================= */
+    /* ===================================================== */
+    /* ================= LOBBY SYNC ======================== */
+    /* ===================================================== */
+
+    private fun broadcastLobby() {
+
+        val lobbyJson = lobby.toJson()
+
+        val message =
+            NetworkMessage.createLobbyState(
+                hostId = "SERVER",
+                lobbyJson = lobbyJson
+            )
+
+        clients.forEach {
+            sendToClient(it, message)
+        }
+    }
+
+    /* ===================================================== */
+    /* ================= STATE SYNC ======================== */
+    /* ===================================================== */
 
     private fun broadcastFullState() {
 
-        val stateJson =
-            NetworkMessage.getGson().toJson(gameEngine)
+        val engine = gameEngine ?: return
 
-        val message = NetworkMessage.createStateSync(
-            hostId = "SERVER",
-            stateJson = stateJson,
-            round = 0,
-            trick = gameEngine.trickNumber
-        )
+        val stateJson =
+            NetworkMessage.getGson().toJson(engine)
+
+        val message =
+            NetworkMessage.createStateSync(
+                hostId = "SERVER",
+                stateJson = stateJson,
+                trick = engine.trickNumber
+            )
 
         clients.forEach {
             sendToClient(it, message)
@@ -204,19 +275,27 @@ class NetworkGameServer(
     }
 
     private fun sendFullStateTo(client: ClientConnection) {
-
-        val stateJson =
-            NetworkMessage.getGson().toJson(gameEngine)
-
-        val message = NetworkMessage.createStateSync(
-            hostId = "SERVER",
-            stateJson = stateJson,
-            round = 0,
-            trick = gameEngine.trickNumber
-        )
-
-        sendToClient(client, message)
+        broadcastFullState()
     }
+
+    /* ===================================================== */
+    /* ================= REMOVE ============================ */
+    /* ===================================================== */
+
+    private fun removeClient(client: ClientConnection) {
+
+        clients.remove(client)
+        lobby.removePlayer(client.playerId)
+        networkPlayerMap.remove(client.playerId)
+
+        try { client.socket.close() } catch (_: Exception) {}
+
+        broadcastLobby()
+    }
+
+    /* ===================================================== */
+    /* ================= SEND ============================== */
+    /* ===================================================== */
 
     private fun sendToClient(
         client: ClientConnection,
@@ -229,29 +308,9 @@ class NetworkGameServer(
         } catch (_: Exception) {}
     }
 
-    private fun sendError(client: ClientConnection, error: String) {
-        sendToClient(
-            client,
-            NetworkMessage.createError(client.playerId, error)
-        )
-    }
-
-    /* ================= REMOVE ================= */
-
-    private fun removeClient(
-        client: ClientConnection,
-        onClientDisconnected: (String) -> Unit
-    ) {
-        clients.remove(client)
-        networkPlayerMap.remove(client.playerId)
-
-        try { client.socket.close() } catch (_: Exception) {}
-
-        onClientDisconnected(client.playerId)
-        broadcastFullState()
-    }
-
-    /* ================= STOP ================= */
+    /* ===================================================== */
+    /* ================= STOP ============================== */
+    /* ===================================================== */
 
     fun stopServer() {
         isRunning.set(false)
@@ -265,15 +324,14 @@ class NetworkGameServer(
     }
 }
 
-/* ================= CLIENT ================= */
+/* ===================================================== */
+/* ================= CLIENT CONNECTION ================= */
+/* ===================================================== */
 
 data class ClientConnection(
     val socket: Socket,
     val playerId: String
 ) {
-    val input: DataInputStream =
-        DataInputStream(socket.inputStream)
-
-    val output: DataOutputStream =
-        DataOutputStream(socket.outputStream)
+    val input = DataInputStream(socket.inputStream)
+    val output = DataOutputStream(socket.outputStream)
 }
