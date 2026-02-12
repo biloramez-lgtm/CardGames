@@ -79,13 +79,13 @@ class NetworkGameServer(
 
                     when (message.action) {
 
-                        NetworkActions.PLAY_CARD -> {
+                        GameAction.PLAY_CARD -> {
                             handlePlayCard(message)
                             broadcastGameState()
                             onGameUpdated()
                         }
 
-                        NetworkActions.PLAYER_LEFT -> {
+                        GameAction.LEAVE -> {
                             removeClient(client, onClientDisconnected)
                         }
 
@@ -121,7 +121,7 @@ class NetworkGameServer(
         val message = NetworkMessage(
             playerId = "SERVER",
             gameType = "GAME400",
-            action = NetworkActions.GAME_STATE_UPDATE,
+            action = GameAction.UPDATE_GAME_STATE,
             data = stateJson
         )
 
