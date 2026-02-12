@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -22,33 +21,25 @@ import kotlinx.coroutines.delay
 @Composable
 fun Game400Screen(navController: NavHostController) {
 
-    val context = LocalContext.current
-
-    val engine = remember {
-        Game400Engine(
-            context = context,
-            players = listOf(
-                Player("p1", "أنت", teamId = 0, isLocal = true),
-                Player("p2", "يسار", teamId = 1, difficulty = AIDifficulty.HARD),
-                Player("p3", "شريكك", teamId = 0, difficulty = AIDifficulty.NORMAL),
-                Player("p4", "يمين", teamId = 1, difficulty = AIDifficulty.HARD)
-            )
-        )
-    }
+    val engine = remember { Game400Engine() }
 
     var selectedCard by remember { mutableStateOf<Card?>(null) }
     var uiTrigger by remember { mutableStateOf(0) }
     var showRoundDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        engine.initializeDefaultPlayers()
         engine.startNewRound()
         uiTrigger++
     }
 
     LaunchedEffect(engine.currentPlayerIndex, uiTrigger) {
-        if (engine.roundActive && !engine.getCurrentPlayer().isLocal) {
-            delay(600)
-            engine.playAITurnIfNeeded()
+
+        val currentPlayer = engine.getCurrentPlayer()
+
+        if (engine.roundActive && currentPlayer.isAI) {
+            delay(700)
+            engine.playAITurn()
             uiTrigger++
         }
 
@@ -57,7 +48,7 @@ fun Game400Screen(navController: NavHostController) {
         }
     }
 
-    val localPlayer = engine.players.first { it.isLocal }
+    val localPlayer = engine.players.first()
     val leftPlayer = engine.players[1]
     val topPlayer = engine.players[2]
     val rightPlayer = engine.players[3]
@@ -115,7 +106,7 @@ fun Game400Screen(navController: NavHostController) {
             }
 
             Text(
-                "🎴 لعبة 400 - Hybrid Elite AI",
+                "🎴 لعبة 400",
                 color = Color.White,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
@@ -177,7 +168,7 @@ fun Game400Screen(navController: NavHostController) {
                     card = card,
                     isSelected = card == selectedCard,
                     onClick = {
-                        if (engine.getCurrentPlayer().isLocal)
+                        if (!engine.getCurrentPlayer().isAI)
                             selectedCard = card
                     }
                 )
@@ -189,7 +180,7 @@ fun Game400Screen(navController: NavHostController) {
         Button(
             onClick = {
                 selectedCard?.let {
-                    if (engine.playCard(localPlayer, it)) {
+                    if (engine.playCard(it)) {
                         selectedCard = null
                         uiTrigger++
                     }
@@ -197,7 +188,7 @@ fun Game400Screen(navController: NavHostController) {
             },
             enabled =
                 selectedCard != null &&
-                        engine.getCurrentPlayer().isLocal &&
+                        !engine.getCurrentPlayer().isAI &&
                         engine.roundActive,
             modifier = Modifier.fillMaxWidth()
         ) {
