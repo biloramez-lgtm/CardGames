@@ -1,7 +1,6 @@
 package com.example.tasalicool.network
 
 import com.example.tasalicool.models.*
-import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -20,7 +19,6 @@ class NetworkGameServer(
     private val clients = CopyOnWriteArrayList<ClientConnection>()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val gson = Gson()
 
     private val isRunning = AtomicBoolean(false)
     private val playerCounter = AtomicInteger(1)
@@ -74,18 +72,16 @@ class NetworkGameServer(
                 while (isActive && isRunning.get()) {
 
                     val json = client.input.readUTF()
-                    val message =
-                        NetworkMessage.fromJson(json)
+                    val message = NetworkMessage.fromJson(json)
 
                     when (message.action) {
 
                         GameAction.JOIN -> {
-                            println("👤 ${message.playerName} joined")
                             sendFullStateTo(client)
                         }
 
                         GameAction.PLAY_CARD -> {
-                            handlePlayCard(message)
+                            handlePlayCard(client, message)
                             broadcastFullState()
                             onGameUpdated()
                         }
@@ -113,7 +109,7 @@ class NetworkGameServer(
                     }
                 }
 
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 removeClient(client, onClientDisconnected)
             }
         }
@@ -121,33 +117,53 @@ class NetworkGameServer(
 
     /* ================= HANDLE PLAY ================= */
 
-    private fun handlePlayCard(message: NetworkMessage) {
+    private fun handlePlayCard(
+        client: ClientConnection,
+        message: NetworkMessage
+    ) {
+
+        if (!gameEngine.roundActive) return
 
         val cardString = message.payload ?: return
 
         val player = gameEngine.players
-            .find { it.id == message.playerId } ?: return
+            .find { it.id == message.playerId }
 
-        val card = Card.fromString(cardString) ?: return
-
-        if (gameEngine.currentPlayer.id != player.id) {
-            println("⛔ Not player's turn")
+        if (player == null) {
+            sendError(client, "Invalid player")
             return
         }
 
-        gameEngine.playCard(player, card)
+        if (gameEngine.getCurrentPlayer().id != player.id) {
+            sendError(client, "Not your turn")
+            return
+        }
+
+        val card = Card.fromString(cardString)
+        if (card == null) {
+            sendError(client, "Invalid card")
+            return
+        }
+
+        val success = gameEngine.playCard(player, card)
+
+        if (!success) {
+            sendError(client, "Illegal move")
+        }
     }
 
     /* ================= STATE SYNC ================= */
 
     private fun broadcastFullState() {
-        val stateJson = gson.toJson(gameEngine)
+
+        val stateJson =
+            NetworkMessage.getGson().toJson(gameEngine)
 
         val message = NetworkMessage.createStateSync(
             hostId = "SERVER",
             stateJson = stateJson,
             round = gameEngine.currentRound,
-            trick = gameEngine.currentTrick
+            trick = gameEngine.trickNumber
         )
 
         clients.forEach {
@@ -156,24 +172,36 @@ class NetworkGameServer(
     }
 
     private fun sendFullStateTo(client: ClientConnection) {
-        val stateJson = gson.toJson(gameEngine)
+
+        val stateJson =
+            NetworkMessage.getGson().toJson(gameEngine)
 
         val message = NetworkMessage.createStateSync(
             hostId = "SERVER",
             stateJson = stateJson,
             round = gameEngine.currentRound,
-            trick = gameEngine.currentTrick
+            trick = gameEngine.trickNumber
         )
 
         sendToClient(client, message)
     }
 
-    private fun sendToClient(client: ClientConnection, message: NetworkMessage) {
+    private fun sendToClient(
+        client: ClientConnection,
+        message: NetworkMessage
+    ) {
         try {
             val json = NetworkMessage.toJson(message)
             client.output.writeUTF(json)
             client.output.flush()
         } catch (_: Exception) {}
+    }
+
+    private fun sendError(client: ClientConnection, error: String) {
+        sendToClient(
+            client,
+            NetworkMessage.createError(client.playerId, error)
+        )
     }
 
     /* ================= REMOVE ================= */
@@ -187,6 +215,7 @@ class NetworkGameServer(
         try { client.socket.close() } catch (_: Exception) {}
 
         onClientDisconnected(client.playerId)
+
         broadcastFullState()
     }
 
@@ -210,6 +239,9 @@ data class ClientConnection(
     val socket: Socket,
     val playerId: String
 ) {
-    val input: DataInputStream = DataInputStream(socket.inputStream)
-    val output: DataOutputStream = DataOutputStream(socket.outputStream)
+    val input: DataInputStream =
+        DataInputStream(socket.inputStream)
+
+    val output: DataOutputStream =
+        DataOutputStream(socket.outputStream)
 }
