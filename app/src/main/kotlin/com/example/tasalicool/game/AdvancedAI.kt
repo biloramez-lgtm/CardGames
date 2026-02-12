@@ -15,10 +15,7 @@ object Game400AI {
 
     fun rememberCard(player: Player, card: Card) {
         playedCards.add(card)
-
-        val history = playerCardHistory.getOrPut(player.id) {
-            mutableListOf()
-        }
+        val history = playerCardHistory.getOrPut(player.id) { mutableListOf() }
         history.add(card)
     }
 
@@ -63,9 +60,7 @@ object Game400AI {
     }
 
     fun calculateBid(player: Player): Int {
-
         val strength = evaluateHandStrength(player)
-
         var bid = (strength / 4).toInt()
 
         if (strength > 26) bid++
@@ -79,11 +74,11 @@ object Game400AI {
        ========================================================= */
 
     fun chooseCard(
-    player: Player,
-    controller: GameController
- ): Card
+        player: Player,
+        controller: GameController
+    ): Card {
 
-        val trick: List<Pair<Player, Card>> = gameState.currentTrick
+        val trick: List<Pair<Player, Card>> = controller.currentTrick
         val validCards = getValidCards(player, trick)
 
         var bestCard = validCards.first()
@@ -93,9 +88,9 @@ object Game400AI {
 
             val monteCarlo = simulateFuture(player, card)
             val tactical = tacticalEvaluation(player, card)
-            val pressure = pressureFactor(player, gameState)
+            val pressure = pressureFactor(player, controller)
             val partner = partnerFactor(player, trick)
-            val stage = stageFactor(gameState)
+            val stage = stageFactor(controller)
             val memoryImpact = memoryFactor(card)
 
             val score =
@@ -119,21 +114,14 @@ object Game400AI {
        🎲 Monte Carlo Light
        ========================================================= */
 
-    private fun simulateFuture(
-        player: Player,
-        card: Card
-    ): Double {
+    private fun simulateFuture(player: Player, card: Card): Double {
 
         var wins = 0
         val simulations = 20
 
         repeat(simulations) {
-
-            val probability =
-                calculateWinProbability(player, card)
-
-            val randomFactor =
-                Random.nextDouble(0.8, 1.2)
+            val probability = calculateWinProbability(player, card)
+            val randomFactor = Random.nextDouble(0.8, 1.2)
 
             if (probability * randomFactor > 0.6)
                 wins++
@@ -142,10 +130,7 @@ object Game400AI {
         return wins.toDouble() / simulations
     }
 
-    private fun calculateWinProbability(
-        player: Player,
-        card: Card
-    ): Double {
+    private fun calculateWinProbability(player: Player, card: Card): Double {
 
         val remaining = buildRemainingDeck(player, card)
 
@@ -163,16 +148,11 @@ object Game400AI {
         val total = remaining.size.toDouble()
         if (total == 0.0) return 1.0
 
-        val risk =
-            (higherSameSuit + trumpThreat) / total
-
+        val risk = (higherSameSuit + trumpThreat) / total
         return 1.0 - risk
     }
 
-    private fun buildRemainingDeck(
-        player: Player,
-        card: Card
-    ): List<Card> {
+    private fun buildRemainingDeck(player: Player, card: Card): List<Card> {
 
         val all =
             Suit.values().flatMap { s ->
@@ -191,18 +171,14 @@ object Game400AI {
        🎯 Tactical Layers
        ========================================================= */
 
-    private fun tacticalEvaluation(
-        player: Player,
-        card: Card
-    ): Double {
+    private fun tacticalEvaluation(player: Player, card: Card): Double {
 
         var score = card.rank.value / 14.0
 
         if (card.isTrump())
             score += 1.0
 
-        val needed =
-            player.bid - player.tricksWon
+        val needed = player.bid - player.tricksWon
 
         if (needed > 0)
             score += 0.7
@@ -212,13 +188,11 @@ object Game400AI {
         return score
     }
 
-    private fun stageFactor(
-        gameState: GameState
-    ): Double {
+    private fun stageFactor(controller: GameController): Double {
 
         return when {
-            gameState.roundNumber < 4 -> 0.3
-            gameState.roundNumber < 9 -> 0.7
+            controller.roundNumber < 4 -> 0.3
+            controller.roundNumber < 9 -> 0.7
             else -> 1.1
         }
     }
@@ -230,8 +204,7 @@ object Game400AI {
 
         if (trick.isEmpty()) return 0.0
 
-        val currentWinner =
-            determineCurrentWinner(trick)
+        val currentWinner = determineCurrentWinner(trick)
 
         return if (currentWinner?.teamId == player.teamId)
             -0.6
@@ -240,12 +213,12 @@ object Game400AI {
 
     private fun pressureFactor(
         player: Player,
-        gameState: GameState
+        controller: GameController
     ): Double {
 
         val needed = player.bid - player.tricksWon
         val remaining =
-            13 - gameState.players.sumOf { it.tricksWon }
+            13 - controller.players.sumOf { it.tricksWon }
 
         return when {
             needed >= remaining -> 1.0
@@ -255,10 +228,8 @@ object Game400AI {
     }
 
     private fun memoryFactor(card: Card): Double {
-
         val sameSuitPlayed =
             playedCards.count { it.suit == card.suit }
-
         return sameSuitPlayed / 13.0
     }
 
@@ -288,11 +259,8 @@ object Game400AI {
         if (trick.isEmpty())
             return player.hand
 
-        val leadSuit =
-            trick.first().second.suit
-
-        val hasSuit =
-            player.hand.any { it.suit == leadSuit }
+        val leadSuit = trick.first().second.suit
+        val hasSuit = player.hand.any { it.suit == leadSuit }
 
         return if (hasSuit)
             player.hand.filter { it.suit == leadSuit }
