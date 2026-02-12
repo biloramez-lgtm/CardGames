@@ -9,12 +9,13 @@ data class Card(
 
     /* ================= GAME LOGIC ================= */
 
-    fun isTrump(): Boolean {
-    return suit == Game400Constants.TRUMP_SUIT
-}
+    // لا تعتمد على Constants خارجية
+    fun isTrump(trumpSuit: Suit?): Boolean {
+        return trumpSuit != null && suit == trumpSuit
+    }
 
-    fun strength(): Int {
-        return if (isTrump()) {
+    fun strength(trumpSuit: Suit?): Int {
+        return if (isTrump(trumpSuit)) {
             rank.value + 20
         } else {
             rank.value
