@@ -6,7 +6,7 @@ import java.io.Serializable
 import java.util.UUID
 
 enum class GamePhase {
-    WAITING_FOR_PLAYERS,   // 🔥 جديد للـ Lobby
+    WAITING_FOR_PLAYERS,
     BIDDING,
     PLAYING,
     ROUND_END,
@@ -46,18 +46,22 @@ class Game400Engine(
         private set
 
     init {
-        // 🔥 لا نبدأ تلقائياً في WiFi
+        // لا نبدأ تلقائياً في وضع WiFi
         if (gameMode != GameMode.WIFI_MULTIPLAYER) {
             startNewRound()
         }
     }
 
     /* ===================================================== */
-    /* ================= LOBBY START ======================== */
+    /* ================= START FROM LOBBY =================== */
     /* ===================================================== */
 
     fun startGameFromLobby() {
+
         if (phase != GamePhase.WAITING_FOR_PLAYERS) return
+
+        dealerIndex = -1
+        winner = null
         startNewRound()
     }
 
@@ -162,6 +166,10 @@ class Game400Engine(
         }
     }
 
+    /* ===================================================== */
+    /* ================= TRICK LOGIC ======================== */
+    /* ===================================================== */
+
     private fun determineTrickWinner(): Player {
 
         val leadSuit = currentTrick.first().second.suit
@@ -190,15 +198,16 @@ class Game400Engine(
     }
 
     /* ===================================================== */
-    /* ================= AI ================================ */
+    /* ================= AI ================================= */
     /* ===================================================== */
 
     fun isAITurn(): Boolean {
-        return getCurrentPlayer().type == PlayerType.AI
+        return phase == GamePhase.PLAYING &&
+                getCurrentPlayer().type == PlayerType.AI
     }
 
     /* ===================================================== */
-    /* ================= SCORING =========================== */
+    /* ================= SCORING ============================ */
     /* ===================================================== */
 
     private fun finishRound() {
@@ -228,7 +237,7 @@ class Game400Engine(
     }
 
     /* ===================================================== */
-    /* ================= WIFI SYNC ========================= */
+    /* ================= WIFI SYNC ========================== */
     /* ===================================================== */
 
     fun forceSyncFromServer(server: Game400Engine) {
@@ -251,7 +260,7 @@ class Game400Engine(
     }
 
     /* ===================================================== */
-    /* ================= HELPERS =========================== */
+    /* ================= HELPERS ============================ */
     /* ===================================================== */
 
     fun getCurrentPlayer(): Player =
