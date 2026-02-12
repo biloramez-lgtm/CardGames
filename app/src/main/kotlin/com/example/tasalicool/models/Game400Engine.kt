@@ -38,7 +38,6 @@ class Game400Engine(
         private set
 
     init {
-        // لا نبدأ تلقائياً في وضع WiFi
         if (gameMode != GameMode.WIFI_MULTIPLAYER) {
             startNewRound()
         }
@@ -49,9 +48,7 @@ class Game400Engine(
     /* ===================================================== */
 
     fun startGameFromLobby() {
-
         if (phase != GamePhase.WAITING_FOR_PLAYERS) return
-
         dealerIndex = -1
         winner = null
         startNewRound()
@@ -91,10 +88,11 @@ class Game400Engine(
         if (phase != GamePhase.BIDDING) return false
         if (player != getCurrentPlayer()) return false
 
+        // نظام المزايدة حسب السكور
         val minBid = when {
             player.score < 30 -> 2
             player.score < 40 -> 3
-            else -> 4
+            else -> 4   // من 40 وفوق لازم 4 عالأقل
         }
 
         if (bid < minBid || bid > 13) return false
@@ -204,6 +202,7 @@ class Game400Engine(
 
     private fun finishRound() {
 
+        // فوز مباشر إذا 13 / 13
         players.forEach { player ->
             if (player.bid == 13 && player.tricksWon == 13) {
                 winner = player
@@ -212,8 +211,10 @@ class Game400Engine(
             }
         }
 
+        // حساب النقاط
         players.forEach { it.applyRoundScore() }
 
+        // شرط الفوز عند 41+
         players.forEach { player ->
             val partner = getPartner(player)
             if (player.score >= 41 && partner.score > 0) {
