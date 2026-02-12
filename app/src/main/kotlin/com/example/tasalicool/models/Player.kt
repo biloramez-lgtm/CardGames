@@ -1,13 +1,29 @@
 package com.example.tasalicool.models
 
 import java.io.Serializable
+import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 
+/* ===================================================== */
+/* ================= PLAYER TYPE ======================= */
+/* ===================================================== */
+
+enum class PlayerType {
+    HUMAN,
+    AI
+}
+
+/* ===================================================== */
+/* ================= PLAYER MODEL ====================== */
+/* ===================================================== */
+
 data class Player(
-    val id: String,
+
+    val id: String = UUID.randomUUID().toString(),
     val name: String,
+    val type: PlayerType = PlayerType.HUMAN,
 
     val hand: MutableList<Card> = mutableListOf(),
 
@@ -16,12 +32,17 @@ data class Player(
     var tricksWon: Int = 0,
     var teamId: Int = 0,
 
-    val isLocal: Boolean = false,
-
     var difficulty: AIDifficulty = AIDifficulty.NORMAL,
     var rating: Int = 1200
 
 ) : Serializable {
+
+    /* ===================================================== */
+    /* ================= TYPE HELPERS ====================== */
+    /* ===================================================== */
+
+    fun isAI(): Boolean = type == PlayerType.AI
+    fun isHuman(): Boolean = type == PlayerType.HUMAN
 
     /* ===================================================== */
     /* ================= CARD MANAGEMENT =================== */
@@ -49,9 +70,7 @@ data class Player(
         )
     }
 
-    fun hasCard(card: Card): Boolean {
-        return hand.contains(card)
-    }
+    fun hasCard(card: Card): Boolean = hand.contains(card)
 
     fun resetForNewRound() {
         bid = 0
@@ -101,7 +120,7 @@ data class Player(
     }
 
     /* ===================================================== */
-    /* ================= AI BEHAVIOR ======================= */
+    /* ================= AI HELPERS ======================== */
     /* ===================================================== */
 
     fun aggressionFactor(): Double =
@@ -139,48 +158,15 @@ data class Player(
     }
 
     /* ===================================================== */
-    /* ================= NETWORK COPIES ==================== */
-    /* ===================================================== */
-
-    fun toNetworkFullCopy(): Player {
-        return copy(
-            hand = hand.toMutableList()
-        )
-    }
-
-    fun toNetworkSafeCopy(): Player {
-        return copy(
-            hand = hand.toMutableList()
-        )
-    }
-
-    fun updateFromNetwork(networkPlayer: Player) {
-
-        score = networkPlayer.score
-        bid = networkPlayer.bid
-        tricksWon = networkPlayer.tricksWon
-        teamId = networkPlayer.teamId
-        rating = networkPlayer.rating
-        difficulty = networkPlayer.difficulty
-
-        hand.clear()
-        hand.addAll(networkPlayer.hand)
-        sortHand()
-    }
-
-    /* ===================================================== */
     /* ================= UTILITIES ========================= */
     /* ===================================================== */
 
-    fun displayScore(): String {
-        return "$score pts"
-    }
+    fun displayScore(): String = "$score pts"
 
-    fun shortInfo(): String {
-        return "$name | Score: $score | Tricks: $tricksWon"
-    }
+    fun shortInfo(): String =
+        "$name | Score: $score | Tricks: $tricksWon"
 
     override fun toString(): String {
-        return "Player(id=$id, name=$name, score=$score)"
+        return "Player(id=$id, name=$name, type=$type, score=$score)"
     }
 }
