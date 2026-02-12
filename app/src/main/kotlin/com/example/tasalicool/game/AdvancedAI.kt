@@ -25,9 +25,10 @@ object AdvancedAI {
 
     /* ================= HAND EVALUATION ================= */
 
-    fun evaluateHandStrength(player: Player, trumpSuit: Suit): Double {
+    fun evaluateHandStrength(player: Player): Double {
 
         var score = 0.0
+        val trumpSuit = Suit.HEARTS
 
         val trumpCards = player.hand.filter { it.isTrump(trumpSuit) }
         val highCards = player.hand.filter { it.rank.value >= 11 }
@@ -56,8 +57,8 @@ object AdvancedAI {
         return score
     }
 
-    fun calculateBid(player: Player, trumpSuit: Suit): Int {
-        val strength = evaluateHandStrength(player, trumpSuit)
+    fun calculateBid(player: Player): Int {
+        val strength = evaluateHandStrength(player)
         var bid = (strength / 4).toInt()
 
         if (strength > 26) bid++
@@ -74,7 +75,7 @@ object AdvancedAI {
     ): Card {
 
         val trick = engine.currentTrick
-        val trumpSuit = engine.trumpSuit
+        val trumpSuit = Suit.HEARTS
 
         val validCards = getValidCards(player, trick)
 
@@ -195,8 +196,8 @@ object AdvancedAI {
 
     private fun stageFactor(engine: Game400Engine): Double {
         return when {
-            engine.roundNumber < 4 -> 0.3
-            engine.roundNumber < 9 -> 0.7
+            engine.trickNumber < 4 -> 0.3
+            engine.trickNumber < 9 -> 0.7
             else -> 1.1
         }
     }
