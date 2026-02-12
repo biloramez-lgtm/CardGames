@@ -1,8 +1,5 @@
 package com.example.tasalicool.models
 
-import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import java.io.Serializable
 
 /* ================= CONSTANTS ================= */
@@ -13,7 +10,7 @@ object Game400Constants {
     val TRUMP_SUIT = Suit.HEARTS
 }
 
-/* ================= NETWORK LISTENER ================= */
+/* ================= GAME LISTENER ================= */
 
 interface GameEventListener {
     fun onCardsDealt(players: List<Player>)
@@ -23,22 +20,13 @@ interface GameEventListener {
     fun onGameFinished(winner: Player)
 }
 
-/* ================= ENGINE ================= */
+/* ================= PURE GAME ENGINE ================= */
 
 class Game400Engine(
-    context: Context? = null,
-    val players: List<Player> = listOf(),
+    val players: List<Player>,
     private val listener: GameEventListener? = null
 ) : Serializable {
 
-    @Transient
-    private var appContext: Context? = context?.applicationContext
-
-    @Transient
-    private var handler: Handler? =
-        if (context != null) Handler(Looper.getMainLooper()) else null
-
-    // ✅ نستخدم Deck من Deck.kt
     val deck = Deck()
 
     var currentPlayerIndex = 0
@@ -69,27 +57,6 @@ class Game400Engine(
         currentTrick.clear()
 
         listener?.onCardsDealt(players)
-    }
-
-    /* ================= AI TURN ================= */
-
-    fun playAITurnIfNeeded() {
-
-        if (!roundActive) return
-
-        val current = getCurrentPlayer()
-
-        if (!current.isLocal) {
-
-            val card = current.hand.randomOrNull() ?: return
-            playCard(current, card)
-
-            if (roundActive && !getCurrentPlayer().isLocal) {
-                handler?.postDelayed({
-                    playAITurnIfNeeded()
-                }, 400)
-            }
-        }
     }
 
     /* ================= GAME FLOW ================= */
@@ -201,6 +168,8 @@ class Game400Engine(
             card.suit == leadSuit
         else true
     }
+
+    /* ================= GAME STATE ================= */
 
     fun isGameOver() =
         gameWinner != null
