@@ -5,6 +5,13 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 
+enum class AIDifficulty {
+    EASY,
+    NORMAL,
+    HARD,
+    ELITE
+}
+
 data class Player(
     val id: String,
     val name: String,
