@@ -95,29 +95,20 @@ data class Player(
     }
 
     /* ===================================================== */
-    /* ================= ROUND SCORE ======================= */
-    /* ===================================================== */
+/* ================= ROUND SCORE ======================= */
+/* ===================================================== */
 
-    fun applyRoundScore(): Int {
+fun applyRoundScore(): Int {
 
-        val points = when {
-
-            // كبوت 13
-            bid == 13 ->
-                if (tricksWon == 13) 400 else -52
-
-            // نجح
-            tricksWon >= bid ->
-                if (bid >= 7) bid * 2 else bid
-
-            // فشل
-            else ->
-                if (bid >= 7) -(bid * 2) else -bid
-        }
-
-        score += points
-        return points
+    val points = if (tricksWon >= bid) {
+        bid
+    } else {
+        -bid
     }
+
+    score += points
+    return points
+}
 
     /* ===================================================== */
     /* ================= NETWORK SUPPORT =================== */
