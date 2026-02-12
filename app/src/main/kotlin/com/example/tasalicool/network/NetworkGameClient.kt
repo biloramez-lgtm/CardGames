@@ -1,5 +1,6 @@
 package com.example.tasalicool.network
 
+import com.example.tasalicool.models.*
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.DataInputStream
@@ -7,7 +8,9 @@ import java.io.DataOutputStream
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
 
-class NetworkGameClient {
+class NetworkGameClient(
+    private val gameEngine: Game400Engine
+) {
 
     private var socket: Socket? = null
     private var input: DataInputStream? = null
@@ -20,17 +23,12 @@ class NetworkGameClient {
 
     var playerId: String = "Player_${System.currentTimeMillis()}"
 
-    /* ===================================================== */
-    /* ======================== CONNECT ==================== */
-    /* ===================================================== */
+    /* ================= CONNECT ================= */
 
     fun connect(
         hostIp: String,
         port: Int = 5000,
         onConnected: () -> Unit = {},
-        onMessageReceived: (NetworkMessage) -> Unit = {},
-        onGameStateReceived: (String) -> Unit = {},
-        onCardsReceived: (List<String>) -> Unit = {},
         onDisconnected: () -> Unit = {}
     ) {
         if (isConnected.get()) return
@@ -42,78 +40,47 @@ class NetworkGameClient {
                 output = DataOutputStream(socket!!.outputStream)
 
                 isConnected.set(true)
-
-                println("Connected to server: $hostIp:$port")
                 onConnected()
 
-                // إرسال رسالة انضمام
+                // إرسال JOIN
                 sendMessage(
                     NetworkMessage(
                         playerId = playerId,
-                        gameType = "LOCAL_WIFI",
-                        action = NetworkActions.PLAYER_JOINED
+                        gameType = "GAME400",
+                        action = GameAction.JOIN
                     )
                 )
 
-                listen(
-                    onMessageReceived,
-                    onGameStateReceived,
-                    onCardsReceived,
-                    onDisconnected
-                )
+                listen(onDisconnected)
 
             } catch (e: Exception) {
                 isConnected.set(false)
-                println("Connection failed: ${e.message}")
                 onDisconnected()
             }
         }
     }
 
-    /* ===================================================== */
-    /* ======================== LISTEN ===================== */
-    /* ===================================================== */
+    /* ================= LISTEN ================= */
 
-    private fun listen(
-        onMessageReceived: (NetworkMessage) -> Unit,
-        onGameStateReceived: (String) -> Unit,
-        onCardsReceived: (List<String>) -> Unit,
-        onDisconnected: () -> Unit
-    ) {
+    private fun listen(onDisconnected: () -> Unit) {
         scope.launch {
             try {
                 while (isActive && isConnected.get()) {
 
                     val json = input?.readUTF() ?: break
-                    val message = gson.fromJson(json, NetworkMessage::class.java)
+                    val message =
+                        gson.fromJson(json, NetworkMessage::class.java)
 
                     when (message.action) {
 
-                        NetworkActions.GAME_STATE_UPDATE -> {
-                            val state = message.payload?.get("state")
-                            if (state != null) {
-                                onGameStateReceived(state)
-                            }
+                        GameAction.UPDATE_GAME_STATE -> {
+                            applyGameState(message.data)
                         }
 
-                        NetworkActions.DEAL_CARDS -> {
-                            val cardsJson = message.payload?.get("cards")
-                            if (cardsJson != null) {
-                                val cards = gson.fromJson(
-                                    cardsJson,
-                                    Array<String>::class.java
-                                ).toList()
-                                onCardsReceived(cards)
-                            }
-                        }
-
-                        else -> {
-                            onMessageReceived(message)
-                        }
+                        else -> {}
                     }
                 }
-            } catch (e: Exception) {
-                println("Disconnected from server: ${e.message}")
+            } catch (_: Exception) {
             } finally {
                 disconnectInternal()
                 onDisconnected()
@@ -121,11 +88,60 @@ class NetworkGameClient {
         }
     }
 
-    /* ===================================================== */
-    /* ======================== SEND ======================= */
-    /* ===================================================== */
+    /* ================= APPLY STATE ================= */
 
-    fun sendMessage(message: NetworkMessage) {
+    private fun applyGameState(stateJson: String?) {
+
+        if (stateJson == null) return
+
+        val serverEngine =
+            gson.fromJson(stateJson, Game400Engine::class.java)
+
+        // تحديث القيم الأساسية
+        gameEngine.currentPlayerIndex =
+            serverEngine.currentPlayerIndex
+
+        gameEngine.trickNumber =
+            serverEngine.trickNumber
+
+        gameEngine.roundActive =
+            serverEngine.roundActive
+
+        gameEngine.gameWinner =
+            serverEngine.gameWinner
+
+        // تحديث اللاعبين
+        serverEngine.players.forEach { serverPlayer ->
+
+            val localPlayer =
+                gameEngine.players.find { it.id == serverPlayer.id }
+
+            if (localPlayer != null) {
+                localPlayer.updateFromNetwork(serverPlayer)
+            }
+        }
+
+        gameEngine.currentTrick.clear()
+        gameEngine.currentTrick.addAll(serverEngine.currentTrick)
+    }
+
+    /* ================= PLAY CARD ================= */
+
+    fun playCard(card: Card) {
+
+        sendMessage(
+            NetworkMessage(
+                playerId = playerId,
+                gameType = "GAME400",
+                action = GameAction.PLAY_CARD,
+                data = card.toString()
+            )
+        )
+    }
+
+    /* ================= SEND ================= */
+
+    private fun sendMessage(message: NetworkMessage) {
         if (!isConnected.get()) return
 
         scope.launch {
@@ -133,69 +149,24 @@ class NetworkGameClient {
                 val json = gson.toJson(message)
                 output?.writeUTF(json)
                 output?.flush()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 disconnectInternal()
             }
         }
     }
 
-    /* ================= SEND GAME STATE ================= */
-
-    fun sendGameState(gameStateJson: String) {
-        sendMessage(
-            NetworkMessage(
-                playerId = playerId,
-                gameType = "GAME",
-                action = NetworkActions.GAME_STATE_UPDATE,
-                payload = mapOf("state" to gameStateJson)
-            )
-        )
-    }
-
-    /* ================= SEND CARDS ================= */
-
-    fun sendCards(cards: List<String>) {
-        sendMessage(
-            NetworkMessage(
-                playerId = playerId,
-                gameType = "GAME",
-                action = NetworkActions.REQUEST_CARDS,
-                payload = mapOf(
-                    "cards" to gson.toJson(cards)
-                )
-            )
-        )
-    }
-
-    /* ================= PLAY CARD ================= */
-
-    fun playCard(card: String) {
-        sendMessage(
-            NetworkMessage(
-                playerId = playerId,
-                gameType = "GAME",
-                action = NetworkActions.PLAY_CARD,
-                payload = mapOf("card" to card)
-            )
-        )
-    }
-
-    /* ===================================================== */
-    /* ===================== DISCONNECT ==================== */
-    /* ===================================================== */
+    /* ================= DISCONNECT ================= */
 
     fun disconnect() {
         if (!isConnected.get()) return
 
-        try {
-            sendMessage(
-                NetworkMessage(
-                    playerId = playerId,
-                    gameType = "LOCAL_WIFI",
-                    action = NetworkActions.PLAYER_LEFT
-                )
+        sendMessage(
+            NetworkMessage(
+                playerId = playerId,
+                gameType = "GAME400",
+                action = GameAction.LEAVE
             )
-        } catch (_: Exception) {}
+        )
 
         disconnectInternal()
     }
@@ -204,10 +175,9 @@ class NetworkGameClient {
         isConnected.set(false)
 
         try { socket?.close() } catch (_: Exception) {}
+
         socket = null
         input = null
         output = null
-
-        println("Client connection closed")
     }
 }
