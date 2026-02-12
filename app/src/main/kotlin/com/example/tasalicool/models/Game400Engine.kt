@@ -6,6 +6,7 @@ import java.io.Serializable
 import java.util.UUID
 
 enum class GamePhase {
+    WAITING_FOR_PLAYERS,   // 🔥 جديد للـ Lobby
     BIDDING,
     PLAYING,
     ROUND_END,
@@ -20,7 +21,11 @@ class Game400Engine(
 
     private val deck = Deck()
 
-    var phase = GamePhase.BIDDING
+    var phase =
+        if (gameMode == GameMode.WIFI_MULTIPLAYER)
+            GamePhase.WAITING_FOR_PLAYERS
+        else
+            GamePhase.BIDDING
         private set
 
     var currentPlayerIndex = 0
@@ -41,10 +46,24 @@ class Game400Engine(
         private set
 
     init {
+        // 🔥 لا نبدأ تلقائياً في WiFi
+        if (gameMode != GameMode.WIFI_MULTIPLAYER) {
+            startNewRound()
+        }
+    }
+
+    /* ===================================================== */
+    /* ================= LOBBY START ======================== */
+    /* ===================================================== */
+
+    fun startGameFromLobby() {
+        if (phase != GamePhase.WAITING_FOR_PLAYERS) return
         startNewRound()
     }
 
-    /* ================= ROUND ================= */
+    /* ===================================================== */
+    /* ================= ROUND ============================== */
+    /* ===================================================== */
 
     fun startNewRound() {
 
@@ -61,12 +80,15 @@ class Game400Engine(
         trickNumber = 0
         currentTrick.clear()
         lastTrickWinner = null
+        winner = null
 
         currentPlayerIndex = (dealerIndex + 1) % players.size
         phase = GamePhase.BIDDING
     }
 
-    /* ================= BIDDING ================= */
+    /* ===================================================== */
+    /* ================= BIDDING ============================ */
+    /* ===================================================== */
 
     fun placeBid(player: Player, bid: Int): Boolean {
 
@@ -92,7 +114,9 @@ class Game400Engine(
         return true
     }
 
-    /* ================= PLAY ================= */
+    /* ===================================================== */
+    /* ================= PLAY =============================== */
+    /* ===================================================== */
 
     fun playCard(player: Player, card: Card): Boolean {
 
@@ -165,13 +189,17 @@ class Game400Engine(
         return if (hasSuit) card.suit == leadSuit else true
     }
 
-    /* ================= AI ================= */
+    /* ===================================================== */
+    /* ================= AI ================================ */
+    /* ===================================================== */
 
     fun isAITurn(): Boolean {
         return getCurrentPlayer().type == PlayerType.AI
     }
 
-    /* ================= SCORING ================= */
+    /* ===================================================== */
+    /* ================= SCORING =========================== */
+    /* ===================================================== */
 
     private fun finishRound() {
 
@@ -199,7 +227,9 @@ class Game400Engine(
         }
     }
 
-    /* ================= WIFI SYNC ================= */
+    /* ===================================================== */
+    /* ================= WIFI SYNC ========================= */
+    /* ===================================================== */
 
     fun forceSyncFromServer(server: Game400Engine) {
 
@@ -214,14 +244,15 @@ class Game400Engine(
         this.lastTrickWinner = server.lastTrickWinner
         this.winner = server.winner
 
-        // مزامنة اللاعبين
         this.players.clear()
-        server.players.forEach { serverPlayer ->
-            this.players.add(serverPlayer)
+        server.players.forEach {
+            this.players.add(it)
         }
     }
 
-    /* ================= HELPERS ================= */
+    /* ===================================================== */
+    /* ================= HELPERS =========================== */
+    /* ===================================================== */
 
     fun getCurrentPlayer(): Player =
         players[currentPlayerIndex]
