@@ -11,9 +11,11 @@ class Game400Engine(
     humanCount: Int = 1,
     val players: MutableList<Player> = initializePlayers(gameMode, humanCount),
     val onClientConnected: ((Player) -> Unit)? = null,
-    val onClientDisconnected: ((Player) -> Unit)? = null,
-    val onGameUpdated: (() -> Unit)? = null
+    val onClientDisconnected: ((Player) -> Unit)? = null
 ) : Serializable {
+
+    // 🔥 أصبح var حتى نربطه مع Compose
+    var onGameUpdated: (() -> Unit)? = null
 
     var isNetworkClient = false
 
@@ -27,21 +29,19 @@ class Game400Engine(
             GamePhase.BIDDING
 
     var currentPlayerIndex = 0
-
     var dealerIndex = -1
-
     var trickNumber = 0
 
     val currentTrick = mutableListOf<Pair<Player, Card>>()
 
     var lastTrickWinner: Player? = null
-
     var winner: Player? = null
 
     /* ================= START ================= */
 
     fun startGame() {
         if (isNetworkClient) return
+
         if (gameMode != GameMode.WIFI_MULTIPLAYER) {
             startNewRound()
         }
@@ -50,6 +50,7 @@ class Game400Engine(
     fun startNewRound() {
 
         if (isNetworkClient) return
+        if (players.size < 4) return   // حماية إضافية
 
         deck.reset()
         AdvancedAI.resetMemory()
@@ -71,34 +72,6 @@ class Game400Engine(
 
         onGameUpdated?.invoke()
         processAIBidding()
-    }
-
-    /* ================= NETWORK SYNC ================= */
-
-    fun applyNetworkState(stateJson: String) {
-
-        val serverEngine =
-            gson.fromJson(
-                stateJson,
-                Game400Engine::class.java
-            )
-
-        synchronized(this) {
-
-            players.clear()
-            players.addAll(serverEngine.players)
-
-            currentTrick.clear()
-            currentTrick.addAll(serverEngine.currentTrick)
-
-            phase = serverEngine.phase
-            trickNumber = serverEngine.trickNumber
-            winner = serverEngine.winner
-            currentPlayerIndex = serverEngine.currentPlayerIndex
-            dealerIndex = serverEngine.dealerIndex
-        }
-
-        onGameUpdated?.invoke()
     }
 
     /* ================= BIDDING ================= */
@@ -201,21 +174,8 @@ class Game400Engine(
         trickNumber++
 
         currentPlayerIndex = players.indexOf(trickWinner)
-    }
-
-    fun clearTrickAfterDelay() {
-
-        if (isNetworkClient) return
-        if (currentTrick.isEmpty()) return
-
-        currentTrick.clear()
-
-        if (trickNumber >= 13) {
-            finishRound()
-        }
 
         onGameUpdated?.invoke()
-        processAITurns()
     }
 
     /* ================= RULES ================= */
@@ -242,35 +202,6 @@ class Game400Engine(
                 .maxByOrNull { it.second.rank.ordinal }!!
 
         return winningPlay.first
-    }
-
-    /* ================= SCORING ================= */
-
-    private fun finishRound() {
-
-        players.forEach { it.applyRoundScore() }
-
-        val team1Score =
-            players.filter { it.teamId == 1 }.sumOf { it.score }
-
-        val team2Score =
-            players.filter { it.teamId == 2 }.sumOf { it.score }
-
-        if (team1Score >= 41 || team2Score >= 41) {
-
-            val winningTeamId =
-                if (team1Score >= 41) 1 else 2
-
-            winner =
-                players.first { it.teamId == winningTeamId }
-
-            phase = GamePhase.GAME_OVER
-            onGameUpdated?.invoke()
-            return
-        }
-
-        phase = GamePhase.ROUND_END
-        onGameUpdated?.invoke()
     }
 
     /* ================= HELPERS ================= */
