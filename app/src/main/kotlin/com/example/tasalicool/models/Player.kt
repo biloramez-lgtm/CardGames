@@ -45,10 +45,11 @@ data class Player(
         hand.clear()
     }
 
+    // ✅ حل مشكلة trumpSuit
     fun sortHand() {
         hand.sortWith(
-            compareByDescending<Card> { it.isTrump() }
-                .thenByDescending { it.strength() }
+            compareByDescending<Card> { it.isTrump(Suit.HEARTS) }
+                .thenByDescending { it.strength(Suit.HEARTS) }
         )
     }
 
@@ -84,7 +85,7 @@ data class Player(
             10 -> 40
             11 -> 11
             12 -> 12
-            13 -> 41   // 🔥 عدلنا هون
+            13 -> 41
             else -> 0
         }
 
