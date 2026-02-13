@@ -3,10 +3,10 @@ package com.example.tasalicool.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -20,10 +20,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.tasalicool.models.Card
-import com.example.tasalicool.models.Suit
 
 /* =========================================================
-   🎴 MAIN CARD VIEW – PRO COMPETITIVE VERSION
+   🎴 UTILITIES
+   ========================================================= */
+
+private fun Card.suitSymbol(): String =
+    suit.displayName.first().toString()
+
+private fun Card.suitColor(): Color =
+    if (suit.displayName.contains("♥") || suit.displayName.contains("♦"))
+        Color(0xFFD32F2F)
+    else
+        Color(0xFF212121)
+
+/* =========================================================
+   🎴 MAIN CARD FRONT
    ========================================================= */
 
 @Composable
@@ -35,38 +47,19 @@ fun CardView(
     onClick: (() -> Unit)? = null
 ) {
 
-    val interactionSource = remember { MutableInteractionSource() }
-
-    val cardColor = when (card.suit) {
-        Suit.HEARTS, Suit.DIAMONDS -> Color(0xFFD32F2F)
-        Suit.CLUBS, Suit.SPADES -> Color(0xFF212121)
-    }
-
-    val suitSymbol = when (card.suit) {
-        Suit.HEARTS -> "♥"
-        Suit.DIAMONDS -> "♦"
-        Suit.CLUBS -> "♣"
-        Suit.SPADES -> "♠"
-    }
-
     val backgroundColor by animateColorAsState(
         if (isSelected) Color(0xFFFFF8E1) else Color.White,
-        label = "card_bg"
+        label = ""
     )
 
     val elevation by animateDpAsState(
         if (isSelected) 14.dp else 6.dp,
-        label = "card_elevation"
+        label = ""
     )
 
     val scale by animateFloatAsState(
         if (isSelected) 1.07f else 1f,
-        label = "card_scale"
-    )
-
-    val borderWidth by animateDpAsState(
-        if (isSelected) 3.dp else 1.dp,
-        label = "border_anim"
+        label = ""
     )
 
     Box(
@@ -80,15 +73,11 @@ fun CardView(
             .shadow(elevation, RoundedCornerShape(12.dp))
             .background(backgroundColor, RoundedCornerShape(12.dp))
             .border(
-                borderWidth,
+                if (isSelected) 3.dp else 1.dp,
                 if (isSelected) Color(0xFFFFA000) else Color(0xFFBDBDBD),
                 RoundedCornerShape(12.dp)
             )
-            .clickable(
-                enabled = enabled && onClick != null,
-                interactionSource = interactionSource,
-                indication = null
-            ) {
+            .clickable(enabled = enabled && onClick != null) {
                 onClick?.invoke()
             }
             .padding(8.dp),
@@ -101,16 +90,16 @@ fun CardView(
             verticalArrangement = Arrangement.SpaceBetween
         ) {
 
-            CornerContent(card.rank.displayName, suitSymbol, cardColor)
+            Corner(card.rank.displayName, card.suitSymbol(), card.suitColor())
 
             Text(
-                text = suitSymbol,
+                text = card.suitSymbol(),
                 fontSize = 32.sp,
-                color = cardColor,
+                color = card.suitColor(),
                 fontWeight = FontWeight.Bold
             )
 
-            CornerContent(suitSymbol, card.rank.displayName, cardColor)
+            Corner(card.suitSymbol(), card.rank.displayName, card.suitColor())
         }
     }
 }
@@ -118,7 +107,7 @@ fun CardView(
 /* ========================================================= */
 
 @Composable
-private fun CornerContent(
+private fun Corner(
     top: String,
     bottom: String,
     color: Color
@@ -139,7 +128,7 @@ private fun CornerContent(
 }
 
 /* =========================================================
-   🎴 CARD BACK – PRO VERSION
+   🎴 CARD BACK
    ========================================================= */
 
 @Composable
@@ -168,7 +157,7 @@ fun CardBackView(
 }
 
 /* =========================================================
-   🎴 COMPACT CARD – PLAYER HAND PRO VERSION
+   🎴 COMPACT CARD (HAND)
    ========================================================= */
 
 @Composable
@@ -180,26 +169,14 @@ fun CompactCardView(
     onClick: (() -> Unit)? = null
 ) {
 
-    val cardColor = when (card.suit) {
-        Suit.HEARTS, Suit.DIAMONDS -> Color(0xFFD32F2F)
-        Suit.CLUBS, Suit.SPADES -> Color(0xFF212121)
-    }
-
-    val suitSymbol = when (card.suit) {
-        Suit.HEARTS -> "♥"
-        Suit.DIAMONDS -> "♦"
-        Suit.CLUBS -> "♣"
-        Suit.SPADES -> "♠"
-    }
-
     val elevation by animateDpAsState(
         if (isSelected) 10.dp else 3.dp,
-        label = "compact_elevation"
+        label = ""
     )
 
     val scale by animateFloatAsState(
         if (isSelected) 1.05f else 1f,
-        label = "compact_scale"
+        label = ""
     )
 
     Box(
@@ -231,12 +208,59 @@ fun CompactCardView(
                 text = card.rank.displayName,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = cardColor
+                color = card.suitColor()
             )
             Text(
-                text = suitSymbol,
+                text = card.suitSymbol(),
                 fontSize = 15.sp,
-                color = cardColor
+                color = card.suitColor()
+            )
+        }
+    }
+}
+
+/* =========================================================
+   🎴 3D FLIP CARD
+   ========================================================= */
+
+@Composable
+fun FlipCardView(
+    card: Card,
+    modifier: Modifier = Modifier,
+    isFaceUp: Boolean,
+    isSelected: Boolean = false,
+    enabled: Boolean = true,
+    onClick: (() -> Unit)? = null
+) {
+
+    val rotation by animateFloatAsState(
+        targetValue = if (isFaceUp) 180f else 0f,
+        animationSpec = tween(400),
+        label = ""
+    )
+
+    Box(
+        modifier = modifier
+            .size(80.dp, 120.dp)
+            .graphicsLayer {
+                rotationY = rotation
+                cameraDistance = 12f * density
+            }
+    ) {
+
+        if (rotation <= 90f) {
+            CardBackView(Modifier.matchParentSize())
+        } else {
+            CardView(
+                card = card,
+                isSelected = isSelected,
+                enabled = enabled,
+                onClick = onClick,
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        rotationY = 180f
+                    }
             )
         }
     }
