@@ -24,6 +24,10 @@ class NetworkGameClient(
 
     var playerId: String = "P_${System.currentTimeMillis()}"
 
+    /* ================= STATE ================= */
+
+    private var readySent = false
+
     /* ================= CALLBACKS ================= */
 
     var onGameStarted: (() -> Unit)? = null
@@ -53,6 +57,7 @@ class NetworkGameClient(
                 output = DataOutputStream(socket!!.outputStream)
 
                 isConnected.set(true)
+                readySent = false
 
                 withContext(Dispatchers.Main) {
                     onConnected()
@@ -168,27 +173,16 @@ class NetworkGameClient(
     /* ========================================================= */
 
     fun sendReady() {
+
         if (!isConnected.get()) return
+        if (readySent) return
+
+        readySent = true
 
         sendMessage(
             NetworkMessage(
                 playerId = playerId,
                 action = GameAction.READY
-            )
-        )
-    }
-
-    /* ========================================================= */
-    /* ======================== START GAME ===================== */
-    /* ========================================================= */
-
-    fun startGame() {
-        if (!isConnected.get()) return
-
-        sendMessage(
-            NetworkMessage(
-                playerId = playerId,
-                action = GameAction.START_GAME
             )
         )
     }
@@ -232,6 +226,9 @@ class NetworkGameClient(
     /* ========================================================= */
 
     fun requestSync() {
+
+        if (!isConnected.get()) return
+
         sendMessage(
             NetworkMessage(
                 playerId = playerId,
@@ -281,6 +278,7 @@ class NetworkGameClient(
     private fun disconnectInternal() {
 
         isConnected.set(false)
+        readySent = false
 
         try { socket?.close() } catch (_: Exception) {}
 
