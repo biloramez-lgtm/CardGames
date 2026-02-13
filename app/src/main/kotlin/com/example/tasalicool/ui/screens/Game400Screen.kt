@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,10 +25,10 @@ fun Game400Screen(
     viewModel: GameViewModel = viewModel()
 ) {
 
-    val engine = viewModel.engine
-    viewModel.refresh.value
+    val uiState by viewModel.uiState.collectAsState()
+    val engine = viewModel.getEngine()
 
-    if (engine.players.size < 4) {
+    if (uiState.players.size < 4) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -37,11 +38,11 @@ fun Game400Screen(
         return
     }
 
-    val localPlayer = engine.players[0]
-    val leftPlayer = engine.players[1]
-    val topPlayer = engine.players[2]
-    val rightPlayer = engine.players[3]
-    val currentPlayer = engine.getCurrentPlayer()
+    val localPlayer = uiState.players[0]
+    val leftPlayer = uiState.players[1]
+    val topPlayer = uiState.players[2]
+    val rightPlayer = uiState.players[3]
+    val currentPlayer = uiState.players[uiState.currentPlayerIndex]
 
     var selectedCard by remember { mutableStateOf<Card?>(null) }
 
@@ -58,13 +59,12 @@ fun Game400Screen(
             .padding(8.dp)
     ) {
 
-        when (engine.phase) {
+        when (uiState.phase) {
 
             /* ================= BIDDING ================= */
 
             GamePhase.BIDDING -> {
 
-                // 🔥 عرض يد اللاعب أثناء البِدّينغ
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -75,8 +75,7 @@ fun Game400Screen(
                     Text(
                         text = localPlayer.name,
                         color = Color.White,
-                        modifier = highlight(localPlayer)
-                            .padding(6.dp)
+                        modifier = highlight(localPlayer).padding(6.dp)
                     )
 
                     Spacer(Modifier.height(6.dp))
@@ -89,7 +88,7 @@ fun Game400Screen(
                                 modifier = Modifier.size(60.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("${card.rank} ${card.suit}")
+                                    Text("${card.rank.displayName} ${card.suit.displayName}")
                                 }
                             }
                         }
@@ -173,7 +172,7 @@ fun Game400Screen(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    engine.currentTrick.forEach { (_, card) ->
+                    uiState.currentTrick.forEach { (_, card) ->
                         Card(
                             modifier = Modifier.size(50.dp),
                             colors = CardDefaults.cardColors(
@@ -182,7 +181,7 @@ fun Game400Screen(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = "${card.rank} ${card.suit}",
+                                    text = "${card.rank.displayName} ${card.suit.displayName}",
                                     color = Color.Black
                                 )
                             }
@@ -200,8 +199,7 @@ fun Game400Screen(
                     Text(
                         text = localPlayer.name,
                         color = Color.White,
-                        modifier = highlight(localPlayer)
-                            .padding(6.dp)
+                        modifier = highlight(localPlayer).padding(6.dp)
                     )
 
                     Spacer(Modifier.height(6.dp))
@@ -227,7 +225,7 @@ fun Game400Screen(
                                 }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("${card.rank} ${card.suit}")
+                                    Text("${card.rank.displayName} ${card.suit.displayName}")
                                 }
                             }
                         }
@@ -270,7 +268,7 @@ fun Game400Screen(
                     Spacer(Modifier.height(8.dp))
 
                     Text(
-                        text = "الفائز: ${engine.winner?.name}",
+                        text = "الفائز: ${uiState.winner?.name}",
                         color = Color.White
                     )
 
