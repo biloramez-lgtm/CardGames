@@ -27,27 +27,52 @@ fun Game400Screen(navController: NavHostController) {
     var uiTrigger by remember { mutableStateOf(0) }
     var showRoundDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(engine.currentPlayerIndex, engine.phase, uiTrigger) {
+    val localPlayer = engine.players[0]
 
-        if (engine.isAITurn()) {
-            delay(700)
-            val ai = engine.getCurrentPlayer()
-            val card = ai.hand.firstOrNull()
-            card?.let {
-                engine.playCard(ai, it)
-                uiTrigger++
-            }
-        }
+    /* ================= EFFECT ================= */
+
+    LaunchedEffect(engine.currentPlayerIndex, engine.phase, uiTrigger) {
 
         if (engine.phase == GamePhase.ROUND_END) {
             showRoundDialog = true
         }
     }
 
-    val localPlayer = engine.players[0]
-    val leftPlayer = engine.players[1]
-    val topPlayer = engine.players[2]
-    val rightPlayer = engine.players[3]
+    /* ================= BIDDING UI ================= */
+
+    if (engine.phase == GamePhase.BIDDING &&
+        engine.getCurrentPlayer() == localPlayer
+    ) {
+
+        val minBid = when {
+            localPlayer.score < 30 -> 2
+            localPlayer.score < 40 -> 3
+            else -> 4
+        }
+
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("اختر عدد اللمات") },
+            text = {
+                Column {
+                    (minBid..13).forEach { number ->
+                        Button(
+                            onClick = {
+                                engine.placeBid(localPlayer, number)
+                                uiTrigger++
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Text("$number")
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
 
     /* ================= ROUND END ================= */
 
@@ -90,6 +115,10 @@ fun Game400Screen(navController: NavHostController) {
     }
 
     /* ================= UI ================= */
+
+    val leftPlayer = engine.players[1]
+    val topPlayer = engine.players[2]
+    val rightPlayer = engine.players[3]
 
     Column(
         modifier = Modifier
@@ -168,7 +197,7 @@ fun Game400Screen(navController: NavHostController) {
                     isSelected = card == selectedCard,
                     onClick = {
                         if (engine.phase == GamePhase.PLAYING &&
-                            !engine.isAITurn()
+                            engine.getCurrentPlayer() == localPlayer
                         ) {
                             selectedCard = card
                         }
@@ -191,7 +220,7 @@ fun Game400Screen(navController: NavHostController) {
             enabled =
                 selectedCard != null &&
                 engine.phase == GamePhase.PLAYING &&
-                !engine.isAITurn(),
+                engine.getCurrentPlayer() == localPlayer,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("لعب الورقة")
