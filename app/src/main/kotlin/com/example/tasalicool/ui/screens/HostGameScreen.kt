@@ -29,7 +29,6 @@ fun HostGameScreen(
     var lobbyPlayers by remember { mutableStateOf(listOf<LobbyUiPlayer>()) }
     var hasNavigatedToGame by remember { mutableStateOf(false) }
 
-    val maxPlayers = 4
     val server = remember { NetworkGameServer(5000, gameEngine) }
     val gson = remember { Gson() }
 
@@ -148,10 +147,10 @@ fun HostGameScreen(
         /* ================= LOBBY ================= */
 
         val totalPlayers = lobbyPlayers.size
-        val lobbyFull = totalPlayers == maxPlayers
+
         val allReady =
             lobbyPlayers.isNotEmpty() &&
-            lobbyPlayers.all { it.isReady || it.isAI }
+            lobbyPlayers.all { it.isReady }
 
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -160,7 +159,7 @@ fun HostGameScreen(
             Column(modifier = Modifier.padding(16.dp)) {
 
                 Text(
-                    text = "👥 Lobby ($totalPlayers / 4)",
+                    text = "👥 Lobby ($totalPlayers connected)",
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -169,7 +168,7 @@ fun HostGameScreen(
                 lobbyPlayers.forEach { player ->
                     PlayerRow(
                         name = player.name,
-                        ready = player.isReady || player.isAI,
+                        ready = player.isReady,
                         isAI = player.isAI
                     )
                 }
@@ -180,7 +179,7 @@ fun HostGameScreen(
 
         /* ================= START GAME ================= */
 
-        val canStart = serverStarted && lobbyFull && allReady
+        val canStart = serverStarted && allReady
 
         Button(
             onClick = {
@@ -191,9 +190,12 @@ fun HostGameScreen(
         ) {
             Text(
                 when {
-                    !lobbyFull -> "بانتظار اكتمال اللاعبين (4)"
-                    !allReady -> "بانتظار جاهزية الجميع"
-                    else -> "🚀 Start Game"
+                    lobbyPlayers.isEmpty() ->
+                        "بانتظار دخول لاعب واحد على الأقل"
+                    !allReady ->
+                        "بانتظار جاهزية الجميع"
+                    else ->
+                        "🚀 Start Game"
                 }
             )
         }
