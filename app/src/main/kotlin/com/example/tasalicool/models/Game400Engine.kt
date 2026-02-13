@@ -40,7 +40,14 @@ class Game400Engine(
     var winner: Player? = null
         private set
 
+    // ❌ لم نعد نبدأ الجولة تلقائياً
     init {
+        // سيتم تشغيل اللعبة من الـ UI عبر startGame()
+    }
+
+    /* ================= START GAME ================= */
+
+    fun startGame() {
         if (gameMode != GameMode.WIFI_MULTIPLAYER) {
             startNewRound()
         }
@@ -68,8 +75,8 @@ class Game400Engine(
         currentPlayerIndex = (dealerIndex + 1) % players.size
         phase = GamePhase.BIDDING
 
-        processAIBidding()
         onGameUpdated?.invoke()
+        processAIBidding()
     }
 
     /* ================= BIDDING ================= */
@@ -95,10 +102,10 @@ class Game400Engine(
         if (players.all { it.bid > 0 }) {
             phase = GamePhase.PLAYING
             currentPlayerIndex = (dealerIndex + 1) % players.size
-            processAITurns()
         }
 
         onGameUpdated?.invoke()
+        processAITurns()
         return true
     }
 
@@ -166,8 +173,6 @@ class Game400Engine(
         trickNumber++
 
         currentPlayerIndex = players.indexOf(trickWinner)
-
-        // لا ننتقل فوراً، ننتظر UI يستدعي clearTrickAfterDelay
     }
 
     fun clearTrickAfterDelay() {
