@@ -29,12 +29,22 @@ fun Game400Screen(navController: NavHostController) {
 
     val localPlayer = engine.players[0]
 
-    /* ================= EFFECT ================= */
+    /* ================= MAIN EFFECT ================= */
 
     LaunchedEffect(engine.currentPlayerIndex, engine.phase, uiTrigger) {
 
         if (engine.phase == GamePhase.ROUND_END) {
             showRoundDialog = true
+        }
+    }
+
+    /* ================= CLEAR TRICK EFFECT ================= */
+
+    LaunchedEffect(engine.currentTrick.size) {
+        if (engine.currentTrick.size == 4) {
+            delay(1200)
+            engine.clearTrickAfterDelay()
+            uiTrigger++
         }
     }
 
