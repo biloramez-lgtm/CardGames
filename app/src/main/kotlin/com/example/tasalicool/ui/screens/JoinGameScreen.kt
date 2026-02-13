@@ -1,23 +1,24 @@
 package com.example.tasalicool.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.example.tasalicool.models.Game400Engine
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tasalicool.network.NetworkGameClient
+import com.example.tasalicool.viewmodel.GameViewModel
 
 @Composable
 fun JoinGameScreen(
     navController: NavHostController,
-    gameEngine: Game400Engine
+    viewModel: GameViewModel = viewModel()
 ) {
+
+    val gameEngine = viewModel.engine
 
     var ipAddress by remember { mutableStateOf("") }
     var statusText by remember { mutableStateOf("🔴 Not Connected") }
@@ -35,8 +36,8 @@ fun JoinGameScreen(
         client.onGameStarted = {
             if (!hasNavigated) {
                 hasNavigated = true
-                navController.navigate("game400") {
-                    popUpTo("joinGame") { inclusive = true }
+                navController.navigate("game_400") {
+                    popUpTo("join_game") { inclusive = true }
                 }
             }
         }
