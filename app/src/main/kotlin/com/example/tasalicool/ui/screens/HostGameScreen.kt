@@ -29,7 +29,7 @@ fun HostGameScreen(
 
     var serverStarted by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("السيرفر غير مشغل") }
-    var lobbyPlayers by remember { mutableStateOf(listOf<LobbyUiPlayer>()) }
+    var lobbyPlayers by remember { mutableStateOf(emptyList<LobbyUiPlayer>()) }
     var hasNavigatedToGame by remember { mutableStateOf(false) }
 
     val server = remember { NetworkGameServer(5000, gameEngine) }
@@ -42,11 +42,10 @@ fun HostGameScreen(
     LaunchedEffect(Unit) {
         server.setLobbyUpdateListener { lobbyJson ->
             try {
-                val players =
-                    gson.fromJson(
-                        lobbyJson,
-                        Array<LobbyUiPlayer>::class.java
-                    )?.toList() ?: emptyList()
+                val players = gson.fromJson(
+                    lobbyJson,
+                    Array<LobbyUiPlayer>::class.java
+                )?.toList() ?: emptyList()
 
                 lobbyPlayers = players
             } catch (_: Exception) {
@@ -174,9 +173,7 @@ fun HostGameScreen(
         val canStart = serverStarted && allReady
 
         Button(
-            onClick = {
-                server.requestStartFromHost()
-            },
+            onClick = { server.requestStartFromHost() },
             enabled = canStart,
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -200,5 +197,71 @@ fun HostGameScreen(
         ) {
             Text("رجوع")
         }
+    }
+}
+
+/* ================= LOBBY UI MODEL ================= */
+
+data class LobbyUiPlayer(
+    val networkId: String,
+    val name: String,
+    val isReady: Boolean,
+    val isAI: Boolean
+)
+
+/* ================= PLAYER ROW ================= */
+
+@Composable
+fun PlayerRow(
+    name: String,
+    ready: Boolean,
+    isAI: Boolean = false
+) {
+
+    val statusColor =
+        if (ready) Color(0xFF4CAF50)
+        else Color(0xFFF44336)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(12.dp)
+            )
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        Text(
+            text = if (isAI) "🤖 $name" else "👤 $name",
+            modifier = Modifier.weight(1f)
+        )
+
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(statusColor, RoundedCornerShape(50))
+        )
+    }
+}
+
+/* ================= WIFI IP ================= */
+
+fun getWifiIpAddress(): String? {
+    return try {
+        NetworkInterface.getNetworkInterfaces().toList().forEach { intf ->
+            if (intf.name.contains("wlan", true)) {
+                intf.inetAddresses.toList().forEach { addr ->
+                    if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                        return addr.hostAddress
+                    }
+                }
+            }
+        }
+        null
+    } catch (_: Exception) {
+        null
     }
 }
