@@ -29,8 +29,6 @@ class NetworkGameServer(
     private val lobby = LobbyManager()
     private val networkPlayerMap = mutableMapOf<String, Player>()
 
-    /* ================= START SERVER ================= */
-
     fun startServer(
         onClientConnected: ((String) -> Unit)? = null,
         onClientDisconnected: ((String) -> Unit)? = null,
@@ -64,8 +62,6 @@ class NetworkGameServer(
             } catch (_: Exception) {}
         }
     }
-
-    /* ================= LISTEN ================= */
 
     private fun listenToClient(client: ClientConnection) {
 
@@ -103,8 +99,6 @@ class NetworkGameServer(
         }
     }
 
-    /* ================= JOIN ================= */
-
     private fun handleJoin(
         client: ClientConnection,
         message: NetworkMessage
@@ -128,21 +122,18 @@ class NetworkGameServer(
         broadcastLobby()
     }
 
-    /* ================= START GAME ================= */
-
     private fun handleStartGame(client: ClientConnection) {
 
         val host = lobby.getHost() ?: return
         if (host.networkId != client.playerId) return
         if (!lobby.startGame()) return
 
-        gameEngine.startGameFromLobby()
+        // ✅ التعديل هنا
+        gameEngine.startGame()
 
         mapNetworkPlayersToEngine()
         broadcastFullState()
     }
-
-    /* ================= MAP ================= */
 
     private fun mapNetworkPlayersToEngine() {
 
@@ -158,8 +149,6 @@ class NetworkGameServer(
             }
         }
     }
-
-    /* ================= PLAY CARD ================= */
 
     private fun handlePlayCard(
         client: ClientConnection,
@@ -178,8 +167,6 @@ class NetworkGameServer(
         broadcastFullState()
     }
 
-    /* ================= AI ================= */
-
     private fun processAITurns() {
 
         while (
@@ -191,8 +178,6 @@ class NetworkGameServer(
             gameEngine.playCard(ai, card)
         }
     }
-
-    /* ================= STATE ================= */
 
     private fun broadcastFullState() {
 
@@ -217,8 +202,6 @@ class NetworkGameServer(
         broadcastFullState()
     }
 
-    /* ================= REMOVE ================= */
-
     private fun removeClient(client: ClientConnection) {
 
         clients.remove(client)
@@ -231,8 +214,6 @@ class NetworkGameServer(
 
         broadcastLobby()
     }
-
-    /* ================= LOBBY ================= */
 
     private fun broadcastLobby() {
 
@@ -249,8 +230,6 @@ class NetworkGameServer(
         }
     }
 
-    /* ================= SEND ================= */
-
     private fun sendToClient(
         client: ClientConnection,
         message: NetworkMessage
@@ -261,8 +240,6 @@ class NetworkGameServer(
             client.output.flush()
         } catch (_: Exception) {}
     }
-
-    /* ================= STOP ================= */
 
     fun stopServer() {
 
@@ -276,8 +253,6 @@ class NetworkGameServer(
         try { serverSocket?.close() } catch (_: Exception) {}
     }
 }
-
-/* ================= CLIENT ================= */
 
 data class ClientConnection(
     val socket: Socket,
