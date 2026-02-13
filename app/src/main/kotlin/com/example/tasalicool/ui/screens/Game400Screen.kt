@@ -61,9 +61,9 @@ fun Game400Screen(
     LaunchedEffect(totalScore) {
         if (totalScore != previousTotal) {
             previousTotal = totalScore
-            scaleAnim.animateTo(1.18f, spring(dampingRatio = 0.4f))
+            scaleAnim.animateTo(1.15f)
             delay(250)
-            scaleAnim.animateTo(1f, spring(dampingRatio = 0.6f))
+            scaleAnim.animateTo(1f)
         }
     }
 
@@ -110,16 +110,12 @@ fun Game400Screen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            /* ===== TOP PLAYER ===== */
-
             PlayerSideInfo(
                 player = topPlayer,
                 isCurrentTurn = engine.getCurrentPlayer() == topPlayer
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            /* ===== CENTER TABLE ===== */
 
             Row(
                 modifier = Modifier
@@ -153,8 +149,6 @@ fun Game400Screen(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            /* ===== LOCAL PLAYER ===== */
 
             PlayerSideInfo(
                 player = localPlayer,
@@ -221,7 +215,9 @@ fun Game400Screen(
                 .align(Alignment.TopEnd)
                 .padding(12.dp)
                 .scale(scaleAnim.value),
-            colors = CardDefaults.cardColors(containerColor = animatedColor)
+            colors = CardDefaults.cardColors(
+                containerColor = animatedColor
+            )
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
