@@ -5,13 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
+import com.example.tasalicool.models.Game400Engine
+import com.example.tasalicool.models.GameMode
 import com.example.tasalicool.ui.screens.*
 import com.example.tasalicool.ui.theme.TasalicoolTheme
 
@@ -27,7 +29,18 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    TasalicoolNavGraph(navController)
+
+                    // 🔥 محرك لعبة واحد مشترك
+                    val gameEngine = remember {
+                        Game400Engine(
+                            gameMode = GameMode.SINGLE_PLAYER
+                        )
+                    }
+
+                    TasalicoolNavGraph(
+                        navController = navController,
+                        engine = gameEngine
+                    )
                 }
             }
         }
@@ -40,7 +53,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TasalicoolNavGraph(
-    navController: NavHostController
+    navController: NavHostController,
+    engine: Game400Engine
 ) {
 
     NavHost(
@@ -52,16 +66,24 @@ fun TasalicoolNavGraph(
             HomeScreen(navController)
         }
 
-        // ✅ لم نعد نمرر gameEngine
+        // 🔥 شاشة لعبة 400 الجديدة مع الطاولة الخضراء
         composable("game_400") {
-            Game400Screen(
-                navController = navController
+
+            // بدء لعبة جديدة عند الدخول
+            engine.startGame()
+
+            GameTableScreen(
+                navController = navController,
+                engine = engine
             )
         }
 
+        // 🔥 استكمال نفس المحرك
         composable("resume_game") {
-            Game400Screen(
-                navController = navController
+
+            GameTableScreen(
+                navController = navController,
+                engine = engine
             )
         }
 
@@ -69,7 +91,6 @@ fun TasalicoolNavGraph(
             AboutScreen(navController)
         }
 
-        // إذا أردت لاحقاً تربطهم بـ ViewModel منفصل
         composable("host_game") {
             HostGameScreen(navController)
         }
