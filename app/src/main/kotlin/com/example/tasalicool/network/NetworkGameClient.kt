@@ -145,9 +145,24 @@ class NetworkGameClient(
 
     private fun applyGameState(stateJson: String) {
 
-        // ✅ FIXED: نرسل النص مباشرة للدالة
         synchronized(gameEngine) {
-            gameEngine.applyNetworkState(stateJson)
+
+            try {
+                val newState = NetworkMessage
+                    .getGson()
+                    .fromJson(stateJson, Game400Engine::class.java)
+
+                // ننسخ القيم المهمة فقط
+                gameEngine.players.clear()
+                gameEngine.players.addAll(newState.players)
+
+                gameEngine.phase = newState.phase
+                gameEngine.currentPlayerIndex = newState.currentPlayerIndex
+                gameEngine.trickNumber = newState.trickNumber
+
+            } catch (e: Exception) {
+                println("❌ Failed to apply network state: ${e.message}")
+            }
         }
     }
 
