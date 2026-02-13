@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.tasalicool.models.*
+import com.example.tasalicool.network.NetworkGameClient
 import com.example.tasalicool.ui.components.*
 import kotlinx.coroutines.delay
 
@@ -32,9 +33,23 @@ fun Game400Screen(
 
     val engine = gameEngine
 
+    // حماية ضد Crash قبل المزامنة
+    if (engine.players.size < 4) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
     var selectedCard by remember { mutableStateOf<Card?>(null) }
 
     val localPlayer = engine.players[0]
+    val leftPlayer = engine.players[1]
+    val topPlayer = engine.players[2]
+    val rightPlayer = engine.players[3]
 
     val team1Score = engine.players[0].score + engine.players[2].score
     val team2Score = engine.players[1].score + engine.players[3].score
@@ -55,16 +70,13 @@ fun Game400Screen(
         }
     }
 
+    // مهم جداً: فقط الـ Host ينظف الأكلة
     LaunchedEffect(engine.currentTrick.size) {
-        if (engine.currentTrick.size == 4) {
+        if (engine.currentTrick.size == 4 && networkClient == null) {
             delay(1200)
             engine.clearTrickAfterDelay()
         }
     }
-
-    val leftPlayer = engine.players[1]
-    val topPlayer = engine.players[2]
-    val rightPlayer = engine.players[3]
 
     Box(
         modifier = Modifier
@@ -77,6 +89,8 @@ fun Game400Screen(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
+
+            /* ================= TOP BAR ================= */
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -100,12 +114,16 @@ fun Game400Screen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            /* ================= TOP PLAYER ================= */
+
             PlayerSideInfo(
                 player = topPlayer,
                 isCurrentTurn = engine.getCurrentPlayer() == topPlayer
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            /* ================= CENTER TABLE ================= */
 
             Row(
                 modifier = Modifier
@@ -140,6 +158,8 @@ fun Game400Screen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            /* ================= LOCAL PLAYER ================= */
+
             PlayerSideInfo(
                 player = localPlayer,
                 isCurrentTurn = engine.getCurrentPlayer() == localPlayer
@@ -169,7 +189,7 @@ fun Game400Screen(
                 onClick = {
                     selectedCard?.let { card ->
                         if (networkClient != null) {
-                            networkClient.sendPlayCard(card)
+                            networkClient.playCard(card)
                         } else {
                             engine.playCard(localPlayer, card)
                         }
@@ -185,6 +205,8 @@ fun Game400Screen(
                 Text("لعب الورقة")
             }
         }
+
+        /* ================= SCORE CARD ================= */
 
         val targetColor = when {
             team1Score > team2Score -> Color(0xFF2E7D32)
