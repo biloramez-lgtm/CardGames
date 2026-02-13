@@ -2,39 +2,80 @@ package com.example.tasalicool.game
 
 import com.example.tasalicool.models.*
 import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.pow
-import kotlin.random.Random
 
 object AdvancedAI {
 
     /* ================= MEMORY ================= */
 
     private val playedCards = mutableSetOf<Card>()
-    private val playerCardHistory = mutableMapOf<String, MutableList<Card>>()
+    private val suitCount = mutableMapOf<Suit, Int>()
+    private val playerMissingSuit =
+        mutableMapOf<String, MutableSet<Suit>>()
 
-    fun rememberCard(player: Player, card: Card) {
+    fun rememberCard(
+        player: Player,
+        card: Card,
+        engine: Game400Engine
+    ) {
         playedCards.add(card)
-        val history = playerCardHistory.getOrPut(player.id) { mutableListOf() }
-        history.add(card)
+
+        suitCount[card.suit] =
+            suitCount.getOrDefault(card.suit, 0) + 1
+
+        val leadSuit =
+            engine.currentTrick.firstOrNull()?.second?.suit
+
+        if (leadSuit != null && card.suit != leadSuit) {
+            val missing =
+                playerMissingSuit.getOrPut(player.id) {
+                    mutableSetOf()
+                }
+            missing.add(leadSuit)
+        }
     }
 
     fun resetMemory() {
         playedCards.clear()
-        playerCardHistory.clear()
+        suitCount.clear()
+        playerMissingSuit.clear()
     }
 
-    /* ================= HAND EVALUATION ================= */
+    /* ================= BID LOGIC ================= */
 
-    fun evaluateHandStrength(player: Player): Double {
+    fun chooseBid(
+        player: Player,
+        engine: Game400Engine,
+        minBid: Int
+    ): Int {
+
+        val strength =
+            evaluateHandStrength(player, engine.trumpSuit)
+
+        var bid = (strength / 5).toInt()
+
+        if (strength > 30) bid++
+        if (strength > 36) bid++
+
+        // حذر بعد 30 نقطة
+        if (player.score >= 30) bid--
+
+        val maxPossible = 13 - engine.trickNumber
+        bid = bid.coerceAtMost(maxPossible)
+
+        return bid.coerceIn(minBid, 13)
+    }
+
+    private fun evaluateHandStrength(
+        player: Player,
+        trump: Suit
+    ): Double {
 
         var score = 0.0
-        val trumpSuit = Suit.HEARTS
 
-        val trumpCards = player.hand.filter { it.isTrump(trumpSuit) }
-        val highCards = player.hand.filter { it.rank.value >= 11 }
+        val trumpCards =
+            player.hand.filter { it.isTrump(trump) }
 
-        score += trumpCards.size * 4.0
+        score += trumpCards.size * 4
 
         trumpCards.forEach {
             score += when (it.rank) {
@@ -46,53 +87,11 @@ object AdvancedAI {
             }
         }
 
-        highCards.forEach {
-            if (!it.isTrump(trumpSuit)) score += 1.5
-        }
-
-        val suitCounts = player.hand.groupBy { it.suit }
-        suitCounts.forEach { (_, cards) ->
-            if (cards.size <= 2) score += 1.5
-        }
+        player.hand
+            .filter { it.rank.value >= 11 }
+            .forEach { score += 1.2 }
 
         return score
-    }
-
-    fun calculateBid(player: Player): Int {
-        val strength = evaluateHandStrength(player)
-
-        var bid = (strength / 5).toInt()
-
-        if (strength > 28) bid++
-        if (strength > 34) bid++
-
-        // 🔥 حماية كاملة
-        return bid.coerceIn(2, 13)
-    }
-
-    /* ================= SMART BID ================= */
-
-    fun chooseBid(
-        player: Player,
-        engine: Game400Engine,
-        minBid: Int
-    ): Int {
-
-        val baseBid = calculateBid(player)
-
-        val positionAdjustment =
-            if (engine.currentPlayerIndex == engine.dealerIndex) -1 else 0
-
-        var finalBid = baseBid + positionAdjustment
-
-        // 🔥 حماية نهائية
-        finalBid = finalBid.coerceAtLeast(minBid)
-        finalBid = finalBid.coerceAtMost(13)
-
-        // 🔥 ضمان عدم رجوع 0 أبداً
-        if (finalBid <= 0) finalBid = minBid
-
-        return finalBid
     }
 
     /* ================= CARD DECISION ================= */
@@ -103,29 +102,27 @@ object AdvancedAI {
     ): Card {
 
         val trick = engine.currentTrick
-        val trumpSuit = Suit.HEARTS
-
         val validCards = getValidCards(player, trick)
+        val trump = engine.trumpSuit
 
         var bestCard = validCards.first()
         var bestScore = Double.NEGATIVE_INFINITY
 
         for (card in validCards) {
 
-            val monteCarlo = simulateFuture(player, card, trumpSuit)
-            val tactical = tacticalEvaluation(player, card, trumpSuit)
-            val pressure = pressureFactor(player, engine)
-            val partner = partnerFactor(player, trick, trumpSuit)
-            val stage = stageFactor(engine)
-            val memoryImpact = memoryFactor(card)
+            val winChance =
+                calculateWinProbability(player, card, engine)
+
+            val tactical =
+                tacticalFactor(player, card, engine)
+
+            val partner =
+                partnerFactor(player, trick, trump)
 
             val score =
-                monteCarlo * 0.30 +
-                tactical * 0.25 +
-                pressure * 0.15 +
-                partner * 0.10 +
-                stage * 0.10 +
-                memoryImpact * 0.10
+                winChance * 0.5 +
+                tactical * 0.3 +
+                partner * 0.2
 
             if (score > bestScore) {
                 bestScore = score
@@ -136,37 +133,18 @@ object AdvancedAI {
         return bestCard
     }
 
-    /* ================= MONTE CARLO ================= */
-
-    private fun simulateFuture(
-        player: Player,
-        card: Card,
-        trumpSuit: Suit
-    ): Double {
-
-        var wins = 0
-        val simulations = 15
-
-        repeat(simulations) {
-            val probability = calculateWinProbability(player, card, trumpSuit)
-            val randomFactor = Random.nextDouble(0.85, 1.15)
-
-            if (probability * randomFactor > 0.55)
-                wins++
-        }
-
-        return wins.toDouble() / simulations
-    }
+    /* ================= WIN PROBABILITY ================= */
 
     private fun calculateWinProbability(
         player: Player,
         card: Card,
-        trumpSuit: Suit
+        engine: Game400Engine
     ): Double {
 
+        val trump = engine.trumpSuit
         val remaining = buildRemainingDeck(player, card)
 
-        val higherSameSuit =
+        val higher =
             remaining.count {
                 it.suit == card.suit &&
                         it.rank.value > card.rank.value
@@ -174,17 +152,30 @@ object AdvancedAI {
 
         val trumpThreat =
             remaining.count {
-                it.isTrump(trumpSuit) && !card.isTrump(trumpSuit)
+                it.isTrump(trump) && !card.isTrump(trump)
             }
 
         val total = remaining.size.toDouble()
         if (total == 0.0) return 1.0
 
-        val risk = (higherSameSuit + trumpThreat) / total
+        var risk = (higher + trumpThreat) / total
+
+        // ضغط حسب عدد اللاعبين المتبقين
+        val remainingPlayers =
+            engine.players.size -
+                    engine.currentTrick.size - 1
+
+        repeat(max(0, remainingPlayers)) {
+            risk *= 1.1
+        }
+
         return (1.0 - risk).coerceIn(0.0, 1.0)
     }
 
-    private fun buildRemainingDeck(player: Player, card: Card): List<Card> {
+    private fun buildRemainingDeck(
+        player: Player,
+        card: Card
+    ): List<Card> {
 
         val all =
             Suit.values().flatMap { suit ->
@@ -201,74 +192,53 @@ object AdvancedAI {
 
     /* ================= TACTICAL ================= */
 
-    private fun tacticalEvaluation(
+    private fun tacticalFactor(
         player: Player,
         card: Card,
-        trumpSuit: Suit
-    ): Double {
-
-        var score = card.rank.value / 14.0
-
-        if (card.isTrump(trumpSuit))
-            score += 0.8
-
-        val needed = player.bid - player.tricksWon
-
-        if (needed > 0)
-            score += 0.6
-        else
-            score -= 0.4
-
-        return score
-    }
-
-    private fun stageFactor(engine: Game400Engine): Double {
-        return when {
-            engine.trickNumber < 4 -> 0.4
-            engine.trickNumber < 9 -> 0.7
-            else -> 1.0
-        }
-    }
-
-    private fun partnerFactor(
-        player: Player,
-        trick: List<Pair<Player, Card>>,
-        trumpSuit: Suit
-    ): Double {
-
-        if (trick.isEmpty()) return 0.0
-
-        val currentWinner = determineCurrentWinner(trick, trumpSuit)
-
-        return if (currentWinner?.teamId == player.teamId)
-            -0.5
-        else 0.4
-    }
-
-    private fun pressureFactor(
-        player: Player,
         engine: Game400Engine
     ): Double {
+
+        val trump = engine.trumpSuit
+        var score = card.rank.value / 14.0
+
+        if (card.isTrump(trump))
+            score += 0.6
 
         val needed = player.bid - player.tricksWon
         val remaining = 13 - engine.trickNumber
 
-        return when {
-            needed >= remaining -> 1.0
-            needed > remaining / 2 -> 0.6
-            else -> 0.3
+        when {
+            needed <= 0 -> score -= 1.0
+            needed >= remaining -> score += 1.2
+            needed > remaining / 2 -> score += 0.6
         }
+
+        return score
     }
 
-    private fun memoryFactor(card: Card): Double {
-        val sameSuitPlayed =
-            playedCards.count { it.suit == card.suit }
-        return (sameSuitPlayed / 13.0).coerceIn(0.0, 1.0)
+    /* ================= PARTNER LOGIC ================= */
+
+    private fun partnerFactor(
+        player: Player,
+        trick: List<Pair<Player, Card>>,
+        trump: Suit
+    ): Double {
+
+        if (trick.isEmpty()) return 0.0
+
+        val currentWinner =
+            determineCurrentWinner(trick, trump)
+
+        return if (currentWinner?.teamId ==
+            player.teamId
+        )
+            -0.6
+        else 0.4
     }
 
     private fun determineCurrentWinner(
         trick: List<Pair<Player, Card>>,
-        trumpSuit: Suit
+        trump: Suit
     ): Player? {
 
         if (trick.isEmpty()) return null
@@ -276,7 +246,7 @@ object AdvancedAI {
         val leadSuit = trick.first().second.suit
 
         val trumpCards =
-            trick.filter { it.second.isTrump(trumpSuit) }
+            trick.filter { it.second.isTrump(trump) }
 
         return if (trumpCards.isNotEmpty())
             trumpCards.maxBy { it.second.rank.value }.first
@@ -285,6 +255,8 @@ object AdvancedAI {
                 .maxBy { it.second.rank.value }
                 .first
     }
+
+    /* ================= VALID CARDS ================= */
 
     private fun getValidCards(
         player: Player,
@@ -295,7 +267,8 @@ object AdvancedAI {
             return player.hand
 
         val leadSuit = trick.first().second.suit
-        val hasSuit = player.hand.any { it.suit == leadSuit }
+        val hasSuit =
+            player.hand.any { it.suit == leadSuit }
 
         return if (hasSuit)
             player.hand.filter { it.suit == leadSuit }
