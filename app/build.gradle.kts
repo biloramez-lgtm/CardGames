@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.gamestools"
+    namespace = "com.tasalicool.game"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.gamestools"
+        applicationId = "com.tasalicool.game"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -62,7 +62,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.9.0")
 
-    // 🔥 Compose BOM
+    // Compose BOM
     implementation(platform("androidx.compose:compose-bom:2024.04.01"))
 
     implementation("androidx.compose.ui:ui")
@@ -79,7 +79,7 @@ dependencies {
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Gson (حل مشكلة Unresolved reference: gson)
+    // Gson
     implementation("com.google.code.gson:gson:2.10.1")
 
     // Material XML compatibility
