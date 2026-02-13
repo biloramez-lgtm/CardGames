@@ -1,10 +1,15 @@
 package com.example.tasalicool.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.tasalicool.models.Game400Engine
@@ -17,99 +22,183 @@ fun JoinGameScreen(
 ) {
 
     var ipAddress by remember { mutableStateOf("") }
-    var statusText by remember { mutableStateOf("غير متصل") }
+    var statusText by remember { mutableStateOf("🔴 غير متصل") }
     var connected by remember { mutableStateOf(false) }
+    var ready by remember { mutableStateOf(false) }
 
     val client = remember { NetworkGameClient(gameEngine) }
 
     DisposableEffect(Unit) {
-        onDispose {
-            client.disconnect()
-        }
+        onDispose { client.disconnect() }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(20.dp)
     ) {
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        Text(
-            text = "🔗 الانضمام إلى لعبة",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        OutlinedTextField(
-            value = ipAddress,
-            onValueChange = { ipAddress = it },
-            label = { Text("أدخل IP السيرفر") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !connected
-        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(statusText)
+        Text(
+            text = "🎮 Join Multiplayer",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(25.dp))
 
-        if (!connected) {
+        /* ================= CONNECTION CARD ================= */
 
-            Button(
-                onClick = {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
 
-                    client.connect(
-                        hostIp = ipAddress,
-                        port = 5000,
-
-                        onConnected = {
-                            statusText = "تم الاتصال بالسيرفر"
-                            connected = true
-                        },
-
-                        onDisconnected = {
-                            statusText = "انقطع الاتصال"
-                            connected = false
-                        }
-                    )
-
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = ipAddress.isNotBlank()
+            Column(
+                modifier = Modifier.padding(16.dp)
             ) {
-                Text("اتصال")
-            }
 
-        } else {
-
-            Button(
-                onClick = {
-                    client.disconnect()
-                    connected = false
-                    statusText = "تم قطع الاتصال"
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
+                Text(
+                    text = "🔗 Server Connection",
+                    style = MaterialTheme.typography.titleMedium
                 )
-            ) {
-                Text("قطع الاتصال")
-            }
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = ipAddress,
+                    onValueChange = { ipAddress = it },
+                    label = { Text("Server IP Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !connected,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = statusText,
+                    color = if (connected)
+                        Color(0xFF4CAF50)
+                    else
+                        Color(0xFFF44336)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (!connected) {
+
+                    Button(
+                        onClick = {
+
+                            client.connect(
+                                hostIp = ipAddress,
+                                port = 5000,
+                                onConnected = {
+                                    connected = true
+                                    statusText = "🟢 Connected to host"
+                                },
+                                onDisconnected = {
+                                    connected = false
+                                    ready = false
+                                    statusText = "🔴 Disconnected"
+                                }
+                            )
+
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = ipAddress.isNotBlank()
+                    ) {
+                        Text("Connect")
+                    }
+
+                } else {
+
+                    Button(
+                        onClick = {
+                            client.disconnect()
+                            connected = false
+                            ready = false
+                            statusText = "🔴 Disconnected"
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Disconnect")
+                    }
+                }
+            }
         }
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(25.dp))
 
-        Button(
+        /* ================= READY CARD ================= */
+
+        if (connected) {
+
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+
+                    Text(
+                        text = "🎯 Game Status",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(15.dp))
+
+                    if (!ready) {
+
+                        Button(
+                            onClick = {
+                                client.sendReady()
+                                ready = true
+                                statusText = "🟢 Ready - Waiting for host..."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("I'm Ready")
+                        }
+
+                    } else {
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Color(0xFF4CAF50),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .padding(14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "✅ You are Ready\nWaiting for Host to Start...",
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        OutlinedButton(
             onClick = { navController.popBackStack() },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("رجوع")
+            Text("Back")
         }
     }
 }
