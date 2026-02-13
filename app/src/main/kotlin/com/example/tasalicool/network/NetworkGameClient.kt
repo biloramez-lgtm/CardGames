@@ -33,6 +33,7 @@ class NetworkGameClient(
     var onGameStarted: (() -> Unit)? = null
     var onLobbyUpdated: ((String) -> Unit)? = null
     var onStateSynced: (() -> Unit)? = null
+    var onDisconnectedCallback: (() -> Unit)? = null
 
     /* ========================================================= */
     /* ========================= CONNECT ======================== */
@@ -46,6 +47,8 @@ class NetworkGameClient(
     ) {
 
         if (isConnected.get()) return
+
+        onDisconnectedCallback = onDisconnected
 
         scope.launch {
             try {
@@ -70,9 +73,12 @@ class NetworkGameClient(
                     )
                 )
 
-                listen(onDisconnected)
+                // طلب مزامنة مباشرة بعد الدخول
+                requestSync()
 
-            } catch (_: Exception) {
+                listen()
+
+            } catch (e: Exception) {
 
                 isConnected.set(false)
 
@@ -87,7 +93,7 @@ class NetworkGameClient(
     /* ========================== LISTEN ======================== */
     /* ========================================================= */
 
-    private fun listen(onDisconnected: () -> Unit) {
+    private fun listen() {
 
         scope.launch {
 
@@ -133,11 +139,9 @@ class NetworkGameClient(
 
             } catch (_: Exception) {
             } finally {
-
                 disconnectInternal()
-
                 withContext(Dispatchers.Main) {
-                    onDisconnected()
+                    onDisconnectedCallback?.invoke()
                 }
             }
         }
@@ -165,6 +169,7 @@ class NetworkGameClient(
 
             gameEngine.phase = serverEngine.phase
             gameEngine.trickNumber = serverEngine.trickNumber
+            gameEngine.winner = serverEngine.winner
         }
     }
 
@@ -200,22 +205,6 @@ class NetworkGameClient(
             playerId = playerId,
             cardString = card.toString(),
             trick = gameEngine.trickNumber
-        )
-
-        sendMessage(message)
-    }
-
-    /* ========================================================= */
-    /* =========================== BID ========================= */
-    /* ========================================================= */
-
-    fun placeBid(bid: Int) {
-
-        if (!isConnected.get()) return
-
-        val message = NetworkMessage.createPlaceBid(
-            playerId = playerId,
-            bidValue = bid
         )
 
         sendMessage(message)
