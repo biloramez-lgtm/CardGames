@@ -26,8 +26,8 @@ fun HostGameScreen(
 
     var serverStarted by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("السيرفر غير مشغل") }
-
     var lobbyPlayers by remember { mutableStateOf(listOf<LobbyUiPlayer>()) }
+    var hasNavigatedToGame by remember { mutableStateOf(false) }
 
     val maxPlayers = 4
     val server = remember { NetworkGameServer(5000, gameEngine) }
@@ -37,11 +37,22 @@ fun HostGameScreen(
         onDispose { server.stopServer() }
     }
 
-    /* ================= LISTEN FOR START FROM SERVER ================= */
+    /* ================= LISTEN LOBBY UPDATES ================= */
 
-    LaunchedEffect(serverStarted) {
-        // نراقب تغير حالة اللعبة
-        // عند بدء اللعب ينتقل الهوست أيضاً
+    LaunchedEffect(Unit) {
+        server.setLobbyUpdateListener { lobbyJson ->
+            try {
+                val players =
+                    gson.fromJson(
+                        lobbyJson,
+                        Array<LobbyUiPlayer>::class.java
+                    )?.toList() ?: emptyList()
+
+                lobbyPlayers = players
+            } catch (_: Exception) {
+                lobbyPlayers = emptyList()
+            }
+        }
     }
 
     Column(
@@ -69,7 +80,6 @@ fun HostGameScreen(
             Column(modifier = Modifier.padding(16.dp)) {
 
                 Text("📡 IP Address", style = MaterialTheme.typography.titleMedium)
-
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
@@ -81,7 +91,7 @@ fun HostGameScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        /* ================= SERVER ================= */
+        /* ================= START SERVER ================= */
 
         Button(
             onClick = {
@@ -95,21 +105,12 @@ fun HostGameScreen(
                             statusText = "🔴 $playerId disconnected"
                         },
                         onGameUpdated = {
-                            // عند بدء اللعبة
-                            navController.navigate("game400")
+                            if (!hasNavigatedToGame) {
+                                hasNavigatedToGame = true
+                                navController.navigate("game400")
+                            }
                         }
                     )
-
-                    // 👇 أهم نقطة — نسمع تحديثات اللوبي
-                    server.setLobbyUpdateListener { lobbyJson ->
-                        val players =
-                            gson.fromJson(
-                                lobbyJson,
-                                Array<LobbyUiPlayer>::class.java
-                            ).toList()
-
-                        lobbyPlayers = players
-                    }
 
                     serverStarted = true
                     statusText = "🚀 Server running on port 5000"
@@ -128,6 +129,7 @@ fun HostGameScreen(
                     server.stopServer()
                     lobbyPlayers = emptyList()
                     serverStarted = false
+                    hasNavigatedToGame = false
                     statusText = "تم إيقاف السيرفر"
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -140,16 +142,16 @@ fun HostGameScreen(
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-
         Text(statusText)
-
         Spacer(modifier = Modifier.height(25.dp))
 
         /* ================= LOBBY ================= */
 
         val totalPlayers = lobbyPlayers.size
         val lobbyFull = totalPlayers == maxPlayers
-        val allReady = lobbyPlayers.all { it.isReady || it.isAI }
+        val allReady =
+            lobbyPlayers.isNotEmpty() &&
+            lobbyPlayers.all { it.isReady || it.isAI }
 
         Card(
             shape = RoundedCornerShape(16.dp),
