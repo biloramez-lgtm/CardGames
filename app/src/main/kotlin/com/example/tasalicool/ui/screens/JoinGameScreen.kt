@@ -9,11 +9,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.text.input.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardActions
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.navigation.NavHostController
 import com.example.tasalicool.models.Game400Engine
 import com.example.tasalicool.network.NetworkGameClient
@@ -30,17 +25,13 @@ fun JoinGameScreen(
     var ready by remember { mutableStateOf(false) }
     var hasNavigated by remember { mutableStateOf(false) }
 
-    val keyboardController = LocalSoftwareKeyboardController.current
     val client = remember { NetworkGameClient(gameEngine) }
 
-    /* ===== THIS DEVICE IS CLIENT ===== */
     LaunchedEffect(Unit) {
         gameEngine.isNetworkClient = true
     }
 
-    /* ===== LISTEN FOR GAME START ===== */
     LaunchedEffect(Unit) {
-
         client.onGameStarted = {
             if (!hasNavigated) {
                 hasNavigated = true
@@ -74,8 +65,6 @@ fun JoinGameScreen(
 
         Spacer(modifier = Modifier.height(30.dp))
 
-        /* ===== CONNECTION CARD ===== */
-
         Card(
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier.fillMaxWidth()
@@ -96,17 +85,7 @@ fun JoinGameScreen(
                     label = { Text("Host IP Address") },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !connected,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri, // يسمح أرقام + نقطة
-                        imeAction = ImeAction.Done,
-                        autoCorrect = false
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            keyboardController?.hide()
-                        }
-                    )
+                    singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(15.dp))
@@ -125,8 +104,6 @@ fun JoinGameScreen(
 
                     Button(
                         onClick = {
-                            keyboardController?.hide()
-
                             client.connect(
                                 hostIp = ipAddress,
                                 port = 5000,
@@ -165,64 +142,6 @@ fun JoinGameScreen(
                         )
                     ) {
                         Text("Disconnect")
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        /* ===== READY CARD ===== */
-
-        if (connected) {
-
-            Card(
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-
-                    Text(
-                        text = "🎯 Player Status",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    if (!ready) {
-
-                        Button(
-                            onClick = {
-                                client.sendReady()
-                                ready = true
-                                statusText = "🟢 Ready - Waiting for Host..."
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("I'm Ready")
-                        }
-
-                    } else {
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    Color(0xFF4CAF50),
-                                    RoundedCornerShape(14.dp)
-                                )
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "✅ You are READY\nWaiting for Host...",
-                                color = Color.White
-                            )
-                        }
                     }
                 }
             }
