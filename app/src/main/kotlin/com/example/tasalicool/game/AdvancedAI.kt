@@ -33,25 +33,25 @@ object AdvancedAI {
         val trumpCards = player.hand.filter { it.isTrump(trumpSuit) }
         val highCards = player.hand.filter { it.rank.value >= 11 }
 
-        score += trumpCards.size * 4.5
+        score += trumpCards.size * 4.0
 
         trumpCards.forEach {
             score += when (it.rank) {
-                Rank.ACE -> 6.0
-                Rank.KING -> 4.5
-                Rank.QUEEN -> 3.5
-                Rank.JACK -> 2.5
-                else -> 1.2
+                Rank.ACE -> 5.0
+                Rank.KING -> 4.0
+                Rank.QUEEN -> 3.0
+                Rank.JACK -> 2.0
+                else -> 1.0
             }
         }
 
         highCards.forEach {
-            if (!it.isTrump(trumpSuit)) score += 2.0
+            if (!it.isTrump(trumpSuit)) score += 1.5
         }
 
         val suitCounts = player.hand.groupBy { it.suit }
         suitCounts.forEach { (_, cards) ->
-            if (cards.size <= 2) score += 2.0
+            if (cards.size <= 2) score += 1.5
         }
 
         return score
@@ -59,15 +59,15 @@ object AdvancedAI {
 
     fun calculateBid(player: Player): Int {
         val strength = evaluateHandStrength(player)
-        var bid = (strength / 4).toInt()
+        var bid = (strength / 5).toInt()
 
-        if (strength > 26) bid++
-        if (strength > 32) bid++
+        if (strength > 28) bid++
+        if (strength > 34) bid++
 
         return min(max(2, bid), 13)
     }
 
-    /* ================= NEW SMART BID ================= */
+    /* ================= SMART BID ================= */
 
     fun chooseBid(
         player: Player,
@@ -77,25 +77,19 @@ object AdvancedAI {
 
         val baseBid = calculateBid(player)
 
-        // ضغط الجولة
-        val needed = player.bid - player.tricksWon
-        val roundPressure =
-            if (engine.trickNumber < 3) 0
-            else if (engine.trickNumber < 8) 1
-            else 2
+        // تعديل بسيط حسب موقعه بالدور
+        val positionAdjustment =
+            if (engine.currentPlayerIndex == engine.dealerIndex) -1 else 0
 
-        var finalBid = baseBid + roundPressure
+        var finalBid = baseBid + positionAdjustment
 
-        // لا ينزل تحت الحد الأدنى
         finalBid = max(minBid, finalBid)
-
-        // لا يتجاوز 13
         finalBid = min(13, finalBid)
 
         return finalBid
     }
 
-    /* ================= DECISION ENGINE ================= */
+    /* ================= CARD DECISION ================= */
 
     fun chooseCard(
         player: Player,
@@ -120,8 +114,8 @@ object AdvancedAI {
             val memoryImpact = memoryFactor(card)
 
             val score =
-                monteCarlo * 0.35 +
-                tactical * 0.20 +
+                monteCarlo * 0.30 +
+                tactical * 0.25 +
                 pressure * 0.15 +
                 partner * 0.10 +
                 stage * 0.10 +
@@ -145,13 +139,13 @@ object AdvancedAI {
     ): Double {
 
         var wins = 0
-        val simulations = 20
+        val simulations = 15
 
         repeat(simulations) {
             val probability = calculateWinProbability(player, card, trumpSuit)
-            val randomFactor = Random.nextDouble(0.8, 1.2)
+            val randomFactor = Random.nextDouble(0.85, 1.15)
 
-            if (probability * randomFactor > 0.6)
+            if (probability * randomFactor > 0.55)
                 wins++
         }
 
@@ -181,7 +175,7 @@ object AdvancedAI {
         if (total == 0.0) return 1.0
 
         val risk = (higherSameSuit + trumpThreat) / total
-        return 1.0 - risk
+        return (1.0 - risk).coerceIn(0.0, 1.0)
     }
 
     private fun buildRemainingDeck(player: Player, card: Card): List<Card> {
@@ -210,23 +204,23 @@ object AdvancedAI {
         var score = card.rank.value / 14.0
 
         if (card.isTrump(trumpSuit))
-            score += 1.0
+            score += 0.8
 
         val needed = player.bid - player.tricksWon
 
         if (needed > 0)
-            score += 0.7
+            score += 0.6
         else
-            score -= 0.5
+            score -= 0.4
 
         return score
     }
 
     private fun stageFactor(engine: Game400Engine): Double {
         return when {
-            engine.trickNumber < 4 -> 0.3
+            engine.trickNumber < 4 -> 0.4
             engine.trickNumber < 9 -> 0.7
-            else -> 1.1
+            else -> 1.0
         }
     }
 
@@ -241,8 +235,8 @@ object AdvancedAI {
         val currentWinner = determineCurrentWinner(trick, trumpSuit)
 
         return if (currentWinner?.teamId == player.teamId)
-            -0.6
-        else 0.5
+            -0.5
+        else 0.4
     }
 
     private fun pressureFactor(
@@ -251,12 +245,11 @@ object AdvancedAI {
     ): Double {
 
         val needed = player.bid - player.tricksWon
-        val remaining =
-            13 - engine.players.sumOf { it.tricksWon }
+        val remaining = 13 - engine.trickNumber
 
         return when {
             needed >= remaining -> 1.0
-            needed > remaining / 2 -> 0.7
+            needed > remaining / 2 -> 0.6
             else -> 0.3
         }
     }
@@ -264,7 +257,7 @@ object AdvancedAI {
     private fun memoryFactor(card: Card): Double {
         val sameSuitPlayed =
             playedCards.count { it.suit == card.suit }
-        return sameSuitPlayed / 13.0
+        return (sameSuitPlayed / 13.0).coerceIn(0.0, 1.0)
     }
 
     private fun determineCurrentWinner(
