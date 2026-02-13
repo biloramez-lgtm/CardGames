@@ -18,6 +18,7 @@ import com.example.tasalicool.models.Card
 import com.example.tasalicool.models.GamePhase
 import com.example.tasalicool.models.Player
 import com.example.tasalicool.viewmodel.GameViewModel
+import com.example.tasalicool.ui.components.FlipCardView
 
 @Composable
 fun Game400Screen(
@@ -84,13 +85,10 @@ fun Game400Screen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(localPlayer.hand) { card ->
-                            Card(
-                                modifier = Modifier.size(60.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text("${card.rank.displayName} ${card.suit.displayName}")
-                                }
-                            }
+                            FlipCardView(
+                                card = card,
+                                isFaceUp = true
+                            )
                         }
                     }
 
@@ -106,10 +104,7 @@ fun Game400Screen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
 
-                        Text(
-                            text = "كم أكلة تريد؟",
-                            color = Color.White
-                        )
+                        Text("كم أكلة تريد؟", color = Color.White)
 
                         Spacer(Modifier.height(16.dp))
 
@@ -168,26 +163,21 @@ fun Game400Screen(
                         .padding(8.dp)
                 )
 
+                /* ======= الطاولة ======= */
+
                 Row(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     uiState.currentTrick.forEach { (_, card) ->
-                        Card(
-                            modifier = Modifier.size(50.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color.White
-                            )
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "${card.rank.displayName} ${card.suit.displayName}",
-                                    color = Color.Black
-                                )
-                            }
-                        }
+                        FlipCardView(
+                            card = card,
+                            isFaceUp = true
+                        )
                     }
                 }
+
+                /* ======= يد اللاعب ======= */
 
                 Column(
                     modifier = Modifier
@@ -209,25 +199,17 @@ fun Game400Screen(
                     ) {
                         items(localPlayer.hand) { card ->
 
-                            Card(
-                                modifier = Modifier
-                                    .size(60.dp)
-                                    .border(
-                                        width = if (card == selectedCard) 3.dp else 1.dp,
-                                        color = if (card == selectedCard)
-                                            Color.Yellow
-                                        else Color.Black
-                                    ),
+                            FlipCardView(
+                                card = card,
+                                isFaceUp = true,
+                                isSelected = card == selectedCard,
+                                enabled = currentPlayer == localPlayer,
                                 onClick = {
                                     if (currentPlayer == localPlayer) {
                                         selectedCard = card
                                     }
                                 }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text("${card.rank.displayName} ${card.suit.displayName}")
-                                }
-                            }
+                            )
                         }
                     }
 
@@ -242,7 +224,7 @@ fun Game400Screen(
                         },
                         enabled =
                             selectedCard != null &&
-                                    currentPlayer == localPlayer
+                            currentPlayer == localPlayer
                     ) {
                         Text("لعب الورقة")
                     }
@@ -260,10 +242,7 @@ fun Game400Screen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
-                    Text(
-                        text = "🏆 انتهت اللعبة",
-                        color = Color.Yellow
-                    )
+                    Text("🏆 انتهت اللعبة", color = Color.Yellow)
 
                     Spacer(Modifier.height(8.dp))
 
