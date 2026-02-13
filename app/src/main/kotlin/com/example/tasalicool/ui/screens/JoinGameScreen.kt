@@ -9,6 +9,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardActions
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.navigation.NavHostController
 import com.example.tasalicool.models.Game400Engine
 import com.example.tasalicool.network.NetworkGameClient
@@ -25,6 +30,7 @@ fun JoinGameScreen(
     var ready by remember { mutableStateOf(false) }
     var hasNavigated by remember { mutableStateOf(false) }
 
+    val keyboardController = LocalSoftwareKeyboardController.current
     val client = remember { NetworkGameClient(gameEngine) }
 
     /* ===== THIS DEVICE IS CLIENT ===== */
@@ -89,7 +95,18 @@ fun JoinGameScreen(
                     onValueChange = { ipAddress = it },
                     label = { Text("Host IP Address") },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !connected
+                    enabled = !connected,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri, // يسمح أرقام + نقطة
+                        imeAction = ImeAction.Done,
+                        autoCorrect = false
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            keyboardController?.hide()
+                        }
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(15.dp))
@@ -108,6 +125,8 @@ fun JoinGameScreen(
 
                     Button(
                         onClick = {
+                            keyboardController?.hide()
+
                             client.connect(
                                 hostIp = ipAddress,
                                 port = 5000,
