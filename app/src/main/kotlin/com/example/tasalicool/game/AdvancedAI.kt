@@ -3,6 +3,7 @@ package com.example.tasalicool.game
 import com.example.tasalicool.models.*
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.random.Random
 
 object AdvancedAI {
@@ -59,12 +60,14 @@ object AdvancedAI {
 
     fun calculateBid(player: Player): Int {
         val strength = evaluateHandStrength(player)
+
         var bid = (strength / 5).toInt()
 
         if (strength > 28) bid++
         if (strength > 34) bid++
 
-        return min(max(2, bid), 13)
+        // 🔥 حماية كاملة
+        return bid.coerceIn(2, 13)
     }
 
     /* ================= SMART BID ================= */
@@ -77,14 +80,17 @@ object AdvancedAI {
 
         val baseBid = calculateBid(player)
 
-        // تعديل بسيط حسب موقعه بالدور
         val positionAdjustment =
             if (engine.currentPlayerIndex == engine.dealerIndex) -1 else 0
 
         var finalBid = baseBid + positionAdjustment
 
-        finalBid = max(minBid, finalBid)
-        finalBid = min(13, finalBid)
+        // 🔥 حماية نهائية
+        finalBid = finalBid.coerceAtLeast(minBid)
+        finalBid = finalBid.coerceAtMost(13)
+
+        // 🔥 ضمان عدم رجوع 0 أبداً
+        if (finalBid <= 0) finalBid = minBid
 
         return finalBid
     }
