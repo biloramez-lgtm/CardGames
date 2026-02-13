@@ -2,47 +2,32 @@ package com.example.tasalicool.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.tasalicool.R
 import com.example.tasalicool.models.*
+import com.example.tasalicool.viewmodel.GameViewModel
 
 @Composable
 fun Game400Screen(
     navController: NavHostController,
-    gameEngine: Game400Engine
+    viewModel: GameViewModel = viewModel()
 ) {
 
-    val engine = remember { gameEngine }
+    val engine = viewModel.engine
 
-    var refreshTrigger by remember { mutableStateOf(0) }
-
-    DisposableEffect(engine) {
-        val update = {
-            refreshTrigger++
-        }
-        engine.onGameUpdated?.invoke()
-        onDispose { }
-    }
-
-    LaunchedEffect(Unit) {
-        engine.startGame()
-    }
-
-    // هذا يجبر Compose على إعادة الرسم
-    refreshTrigger
+    // هذا السطر يجبر إعادة الرسم عند أي تحديث
+    viewModel.refresh.value
 
     if (engine.players.size < 4) {
         Box(
@@ -102,7 +87,9 @@ fun Game400Screen(
                             }
                         }
                     }
+
                 } else {
+
                     Box(Modifier.align(Alignment.Center)) {
                         Text(
                             text = stringResource(
@@ -159,6 +146,7 @@ fun Game400Screen(
             }
 
             GamePhase.GAME_OVER -> {
+
                 Box(Modifier.align(Alignment.Center)) {
                     Text(
                         text = stringResource(
