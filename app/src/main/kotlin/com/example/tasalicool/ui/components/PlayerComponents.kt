@@ -3,104 +3,113 @@ package com.example.tasalicool.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.tasalicool.models.Player
+
+/* ================= SIDE PLAYER (TOP & BOTTOM) ================= */
 
 @Composable
 fun PlayerSideInfo(
     player: Player,
     isCurrentTurn: Boolean = false
 ) {
-    val borderColor =
-        if (isCurrentTurn) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.outline
 
-    Card(
+    val highlightColor =
+        if (isCurrentTurn)
+            MaterialTheme.colorScheme.primary
+        else
+            Color.Transparent
+
+    Row(
         modifier = Modifier
-            .padding(8.dp)
-            .border(2.dp, borderColor, RoundedCornerShape(12.dp)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(14.dp)
+            )
+            .border(
+                width = if (isCurrentTurn) 2.dp else 1.dp,
+                color = if (isCurrentTurn)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            modifier = Modifier
-                .padding(12.dp)
-                .width(130.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
 
-            Text(
-                text = player.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+        Text(
+            text = player.name,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold
+        )
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "Score: ${player.score}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                text = "Bid: ${player.bid}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = "طلب: ${player.bid}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isCurrentTurn)
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
+
+/* ================= VERTICAL PLAYER (LEFT & RIGHT) ================= */
 
 @Composable
 fun PlayerVerticalInfo(
     player: Player,
     isCurrentTurn: Boolean = false
 ) {
-    val backgroundColor =
-        if (isCurrentTurn)
-            MaterialTheme.colorScheme.primaryContainer
-        else
-            MaterialTheme.colorScheme.surfaceVariant
 
     Column(
         modifier = Modifier
-            .padding(8.dp)
-            .background(backgroundColor, RoundedCornerShape(16.dp))
-            .padding(12.dp),
+            .width(80.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(18.dp)
+            )
+            .border(
+                width = if (isCurrentTurn) 2.dp else 1.dp,
+                color = if (isCurrentTurn)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(18.dp)
+            )
+            .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
         Text(
             text = player.name,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "${player.bid}",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = if (isCurrentTurn)
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.onSurface
         )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = "Score: ${player.score}",
-            style = MaterialTheme.typography.bodyLarge
-        )
-
-        Text(
-            text = "Bid: ${player.bid}",
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        if (isCurrentTurn) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "YOUR TURN",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }
