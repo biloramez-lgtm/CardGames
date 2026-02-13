@@ -14,7 +14,6 @@ class Game400Engine(
     val onClientDisconnected: ((Player) -> Unit)? = null
 ) : Serializable {
 
-    // 🔥 أصبح var حتى نربطه مع Compose
     var onGameUpdated: (() -> Unit)? = null
 
     var isNetworkClient = false
@@ -41,7 +40,6 @@ class Game400Engine(
 
     fun startGame() {
         if (isNetworkClient) return
-
         if (gameMode != GameMode.WIFI_MULTIPLAYER) {
             startNewRound()
         }
@@ -50,7 +48,7 @@ class Game400Engine(
     fun startNewRound() {
 
         if (isNetworkClient) return
-        if (players.size < 4) return   // حماية إضافية
+        if (players.size < 4) return
 
         deck.reset()
         AdvancedAI.resetMemory()
@@ -90,12 +88,12 @@ class Game400Engine(
 
         if (bid < minBid || bid > 13) return false
 
-        player.bid = bid
+        player.setBid(bid)
         nextPlayer()
 
         processAIBidding()
 
-        if (players.all { it.bid > 0 }) {
+        if (players.all { it.hasPlacedBid() }) {
             phase = GamePhase.PLAYING
             currentPlayerIndex = (dealerIndex + 1) % players.size
         }
@@ -122,7 +120,8 @@ class Game400Engine(
             }
 
             val bid = AdvancedAI.chooseBid(ai, this, minBid)
-            ai.bid = bid
+
+            ai.setBid(bid)
             nextPlayer()
         }
     }
@@ -174,6 +173,13 @@ class Game400Engine(
         trickNumber++
 
         currentPlayerIndex = players.indexOf(trickWinner)
+
+        // 🔥 إذا انتهت الجولة
+        if (trickNumber >= 13) {
+            players.forEach { it.applyRoundScore() }
+            winner = players.maxByOrNull { it.score }
+            phase = GamePhase.GAME_OVER
+        }
 
         onGameUpdated?.invoke()
     }
