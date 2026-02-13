@@ -1,37 +1,32 @@
 package com.example.tasalicool.ui.screens
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.tasalicool.models.*
-import com.example.tasalicool.network.NetworkGameClient
-import com.example.tasalicool.ui.components.*
-import kotlinx.coroutines.delay
+import com.example.tasalicool.R
 
 @Composable
 fun Game400Screen(
     navController: NavHostController,
-    gameEngine: Game400Engine,
-    networkClient: NetworkGameClient? = null
+    gameEngine: Game400Engine
 ) {
 
     val engine = gameEngine
+
+    LaunchedEffect(Unit) {
+        engine.startGame()
+    }
 
     if (engine.players.size < 4) {
         Box(
@@ -43,29 +38,7 @@ fun Game400Screen(
         return
     }
 
-    var selectedCard by remember { mutableStateOf<Card?>(null) }
-
     val localPlayer = engine.players[0]
-    val leftPlayer = engine.players[1]
-    val topPlayer = engine.players[2]
-    val rightPlayer = engine.players[3]
-
-    val team1Score = localPlayer.score + topPlayer.score
-    val team2Score = leftPlayer.score + rightPlayer.score
-
-    val totalScore = team1Score + team2Score
-    var previousTotal by remember { mutableStateOf(totalScore) }
-
-    val scaleAnim = remember { Animatable(1f) }
-
-    LaunchedEffect(totalScore) {
-        if (totalScore != previousTotal) {
-            previousTotal = totalScore
-            scaleAnim.animateTo(1.15f, animationSpec = spring())
-            delay(250)
-            scaleAnim.animateTo(1f, animationSpec = spring())
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -73,87 +46,145 @@ fun Game400Screen(
             .background(Color(0xFF0E3B2E))
     ) {
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp)
-        ) {
+        when (engine.phase) {
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            /* ================= BIDDING ================= */
 
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
+            GamePhase.BIDDING -> {
+
+                if (engine.getCurrentPlayer() == localPlayer) {
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+
+                        Text(
+                            text = stringResource(R.string.choose_bid),
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        LazyRow {
+                            items((2..13).toList()) { bid ->
+                                Button(
+                                    onClick = {
+                                        engine.placeBid(localPlayer, bid)
+                                    },
+                                    modifier = Modifier.padding(4.dp)
+                                ) {
+                                    Text(text = bid.toString())
+                                }
+                            }
+                        }
+                    }
+                } else {
+
+                    Box(
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.waiting_bid,
+                                engine.getCurrentPlayer().name
+                            ),
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            /* ================= PLAYING ================= */
+
+            GamePhase.PLAYING -> {
+
+                val leftPlayer = engine.players[1]
+                val topPlayer = engine.players[2]
+                val rightPlayer = engine.players[3]
+
+                // Player names around table
+                Text(
+                    text = topPlayer.name,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+
+                Text(
+                    text = leftPlayer.name,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                )
+
+                Text(
+                    text = rightPlayer.name,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                )
+
+                Text(
+                    text = localPlayer.name,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+
+                // Current trick (center)
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    engine.currentTrick.forEach { (player, card) ->
+                        Text(
+                            text = "${player.name}: ${card.rank} ${card.suit}",
+                            color = Color.White
+                        )
+                    }
                 }
 
-                Text(
-                    text = "ðŸŽ´ Ù„Ø¹Ø¨Ø© 400",
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.width(48.dp))
+                // Local player hand
+                LazyRow(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 60.dp)
+                ) {
+                    items(localPlayer.hand) { card ->
+                        Card(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .clickable {
+                                    engine.playCard(localPlayer, card)
+                                }
+                        ) {
+                            Text(
+                                text = "${card.rank} ${card.suit}",
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            /* ================= GAME OVER ================= */
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Button(
-                onClick = { },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Ù„Ø¹Ø¨ Ø§Ù„ÙˆØ±Ù‚Ø©")
+            GamePhase.GAME_OVER -> {
+                Box(
+                    modifier = Modifier.align(Alignment.Center)
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.winner_text,
+                            engine.winner?.name ?: ""
+                        ),
+                        color = Color.Yellow,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
             }
-        }
 
-        val targetColor = when {
-            team1Score > team2Score -> Color(0xFF2E7D32)
-            team2Score > team1Score -> Color(0xFF1565C0)
-            else -> Color(0xFF424242)
-        }
-
-        val animatedColor by animateColorAsState(
-            targetValue = targetColor,
-            animationSpec = spring(),
-            label = "scoreColor"
-        )
-
-        Card(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .scale(scaleAnim.value),
-            colors = CardDefaults.cardColors(
-                containerColor = animatedColor
-            )
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.EmojiEvents,
-                    contentDescription = null,
-                    tint = Color.White
-                )
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                Text(
-                    text = "$team1Score - $team2Score",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
+            else -> {}
         }
     }
 }
