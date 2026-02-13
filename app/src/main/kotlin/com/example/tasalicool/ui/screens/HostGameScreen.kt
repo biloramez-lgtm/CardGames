@@ -21,7 +21,7 @@ fun HostGameScreen(
 ) {
 
     var serverStarted by remember { mutableStateOf(false) }
-    var connectedPlayers by remember { mutableStateOf(mutableListOf<String>()) }
+    var connectedPlayers by remember { mutableStateOf(listOf<String>()) }
     var statusText by remember { mutableStateOf("السيرفر غير مشغل") }
 
     val server = remember { NetworkGameServer(5000, gameEngine) }
@@ -73,11 +73,12 @@ fun HostGameScreen(
                     server.startServer(
                         onClientConnected = { playerId ->
                             connectedPlayers =
-                                (connectedPlayers + playerId).toMutableList()
+                                connectedPlayers + playerId
                             statusText = "لاعب متصل: $playerId"
                         },
                         onClientDisconnected = { playerId ->
-                            connectedPlayers.remove(playerId)
+                            connectedPlayers =
+                                connectedPlayers.filter { it != playerId }
                             statusText = "لاعب قطع الاتصال: $playerId"
                         },
                         onGameUpdated = {
@@ -106,7 +107,7 @@ fun HostGameScreen(
             Button(
                 onClick = {
                     server.stopServer()
-                    connectedPlayers.clear()
+                    connectedPlayers = emptyList()
                     serverStarted = false
                     statusText = "تم إيقاف السيرفر"
                 },
