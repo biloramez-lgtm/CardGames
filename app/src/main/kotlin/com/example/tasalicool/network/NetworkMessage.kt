@@ -15,7 +15,6 @@ data class NetworkMessage(
 
     val action: GameAction,
 
-    // JSON payload (GameState / Card / Lobby / etc)
     val payload: String? = null,
 
     val targetPlayerId: String? = null,
@@ -89,10 +88,11 @@ data class NetworkMessage(
             )
         }
 
+        /* 🔥 FIXED */
         fun createLobbyState(hostId: String, lobbyJson: String): NetworkMessage {
             return NetworkMessage(
                 playerId = hostId,
-                action = GameAction.MESSAGE,
+                action = GameAction.LOBBY_STATE,
                 payload = lobbyJson,
                 isHost = true
             )
@@ -170,6 +170,7 @@ enum class GameAction {
     LEAVE,
     READY,
     START_GAME,
+    LOBBY_STATE,   // 🔥 أضفناها رسمي
 
     /* ===== Game Flow ===== */
     START_ROUND,
@@ -189,7 +190,7 @@ enum class GameAction {
     GAME_OVER,
 
     /* ===== Utility ===== */
-    MESSAGE,      // 🔥 يستخدم لإرسال حالة Lobby
+    MESSAGE,
     PING,
     PONG,
     ERROR
