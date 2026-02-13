@@ -28,7 +28,9 @@ fun HostGameScreen(
     var statusText by remember { mutableStateOf("السيرفر غير مشغل") }
 
     val maxPlayers = 4
-    val aiCount = maxPlayers - connectedPlayers.size
+    val humanCount = connectedPlayers.size
+    val aiCount = (maxPlayers - humanCount).coerceAtLeast(0)
+    val totalPlayers = humanCount + aiCount
 
     val server = remember { NetworkGameServer(5000, gameEngine) }
 
@@ -58,9 +60,8 @@ fun HostGameScreen(
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+
                 Text("📡 IP Address", style = MaterialTheme.typography.titleMedium)
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -74,17 +75,17 @@ fun HostGameScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        /* ================= SERVER BUTTON ================= */
+        /* ================= SERVER ================= */
 
         Button(
             onClick = {
-
                 if (!serverStarted) {
-
                     server.startServer(
                         onClientConnected = { playerId ->
-                            connectedPlayers = connectedPlayers + playerId
-                            statusText = "🟢 $playerId connected"
+                            if (connectedPlayers.size < maxPlayers) {
+                                connectedPlayers = connectedPlayers + playerId
+                                statusText = "🟢 $playerId connected"
+                            }
                         },
                         onClientDisconnected = { playerId ->
                             connectedPlayers =
@@ -95,19 +96,13 @@ fun HostGameScreen(
                             statusText = "🔄 Game updated"
                         }
                     )
-
                     serverStarted = true
                     statusText = "🚀 Server running on port 5000"
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                if (serverStarted)
-                    "السيرفر يعمل..."
-                else
-                    "تشغيل السيرفر"
-            )
+            Text(if (serverStarted) "السيرفر يعمل..." else "تشغيل السيرفر")
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -135,18 +130,16 @@ fun HostGameScreen(
 
         Spacer(modifier = Modifier.height(25.dp))
 
-        /* ================= PLAYERS LIST ================= */
+        /* ================= PLAYERS ================= */
 
         Card(
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
+            Column(modifier = Modifier.padding(16.dp)) {
 
                 Text(
-                    text = "👥 Players (${connectedPlayers.size}/4)",
+                    text = "👥 Lobby ($totalPlayers / 4)",
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -157,7 +150,11 @@ fun HostGameScreen(
                 }
 
                 repeat(aiCount) {
-                    PlayerRow(name = "AI Player", ready = true, isAI = true)
+                    PlayerRow(
+                        name = "AI ${it + 1}",
+                        ready = true,
+                        isAI = true
+                    )
                 }
             }
         }
@@ -166,19 +163,24 @@ fun HostGameScreen(
 
         /* ================= START GAME ================= */
 
-        val canStart =
-            serverStarted &&
-                    connectedPlayers.isNotEmpty() &&
-                    connectedPlayers.size <= 4
+        val lobbyFull = totalPlayers == 4
+        val canStart = serverStarted && lobbyFull
 
         Button(
             onClick = {
-                navController.navigate("game400")
+                if (lobbyFull) {
+                    navController.navigate("game400")
+                }
             },
             enabled = canStart,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("🚀 Start Game")
+            Text(
+                if (lobbyFull)
+                    "🚀 Start Game"
+                else
+                    "بانتظار اكتمال اللاعبين (4)"
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
