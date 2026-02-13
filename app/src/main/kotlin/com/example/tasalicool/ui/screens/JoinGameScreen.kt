@@ -25,15 +25,19 @@ fun JoinGameScreen(
     var statusText by remember { mutableStateOf("🔴 Not Connected") }
     var connected by remember { mutableStateOf(false) }
     var ready by remember { mutableStateOf(false) }
+    var hasNavigated by remember { mutableStateOf(false) }
 
     val client = remember { NetworkGameClient(gameEngine) }
 
     /* ================= LISTEN FOR START FROM HOST ================= */
 
-    LaunchedEffect(client) {
+    LaunchedEffect(Unit) {
         client.onGameStarted = {
-            navController.navigate("game400") {
-                popUpTo("joinGame") { inclusive = true }
+            if (!hasNavigated) {
+                hasNavigated = true
+                navController.navigate("game400") {
+                    popUpTo("joinGame") { inclusive = true }
+                }
             }
         }
     }
@@ -64,9 +68,7 @@ fun JoinGameScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
 
-            Column(
-                modifier = Modifier.padding(18.dp)
-            ) {
+            Column(modifier = Modifier.padding(18.dp)) {
 
                 Text(
                     text = "🔗 Connect to Host",
@@ -113,6 +115,7 @@ fun JoinGameScreen(
                                 onDisconnected = {
                                     connected = false
                                     ready = false
+                                    hasNavigated = false
                                     statusText = "🔴 Disconnected"
                                 }
                             )
@@ -131,6 +134,7 @@ fun JoinGameScreen(
                             client.disconnect()
                             connected = false
                             ready = false
+                            hasNavigated = false
                             statusText = "🔴 Disconnected"
                         },
                         modifier = Modifier.fillMaxWidth(),
