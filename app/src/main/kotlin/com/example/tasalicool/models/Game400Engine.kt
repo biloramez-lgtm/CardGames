@@ -210,70 +210,25 @@ class Game400Engine(
         onGameUpdated?.invoke()
     }
 
-    /* ================= RULES ================= */
+    /* ================= COPY FROM (🔥 NETWORK SYNC FIX) ================= */
 
-    private fun isValidPlay(player: Player, card: Card): Boolean {
+    fun copyFrom(other: Game400Engine) {
 
-        if (currentTrick.isEmpty()) return true
+        this.gameMode = other.gameMode
 
-        val leadSuit = currentTrick.first().second.suit
-        val hasSameSuit = player.hand.any { it.suit == leadSuit }
+        this.phase = other.phase
+        this.currentPlayerIndex = other.currentPlayerIndex
+        this.dealerIndex = other.dealerIndex
+        this.trickNumber = other.trickNumber
 
-        return if (hasSameSuit) card.suit == leadSuit else true
-    }
+        this.players.clear()
+        this.players.addAll(other.players)
 
-    private fun determineTrickWinner(): Player {
+        this.currentTrick.clear()
+        this.currentTrick.addAll(other.currentTrick)
 
-        val leadSuit = currentTrick.first().second.suit
-
-        val heartsPlays =
-            currentTrick.filter { it.second.suit.name == "HEARTS" }
-
-        val winningPlay = if (heartsPlays.isNotEmpty()) {
-            heartsPlays.maxByOrNull { it.second.rank.ordinal }
-        } else {
-            currentTrick
-                .filter { it.second.suit == leadSuit }
-                .maxByOrNull { it.second.rank.ordinal }
-        }!!
-
-        return winningPlay.first
-    }
-
-    private fun getBidValue(bid: Int, currentScore: Int): Int {
-
-        val normalTable = mapOf(
-            2 to 2, 3 to 3, 4 to 4,
-            5 to 10, 6 to 12, 7 to 14,
-            8 to 16, 9 to 27,
-            10 to 40, 11 to 40, 12 to 40, 13 to 40
-        )
-
-        val after30Table = mapOf(
-            2 to 2, 3 to 3, 4 to 4,
-            5 to 5, 6 to 6, 7 to 14,
-            8 to 16, 9 to 27,
-            10 to 40, 11 to 40, 12 to 40, 13 to 40
-        )
-
-        return if (currentScore >= 30)
-            after30Table[bid] ?: bid
-        else
-            normalTable[bid] ?: bid
-    }
-
-    private fun checkGameWinner() {
-
-        players.forEach { player ->
-
-            val partner = players.first {
-                it.teamId == player.teamId && it != player
-            }
-
-            if (player.score >= 41 && partner.score > 0) {
-                winner = player
-            }
-        }
+        this.lastTrickWinner = other.lastTrickWinner
+        this.winner = other.winner
     }
 
     /* ================= HELPERS ================= */
