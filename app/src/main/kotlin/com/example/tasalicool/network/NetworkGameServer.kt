@@ -50,7 +50,6 @@ class NetworkGameServer(
         this.onGameUpdated = onGameUpdated
 
         scope.launch {
-
             try {
 
                 serverSocket = ServerSocket(port)
@@ -85,7 +84,6 @@ class NetworkGameServer(
     private fun listenToClient(client: ClientConnection) {
 
         scope.launch {
-
             try {
 
                 while (isActive && isRunning.get()) {
@@ -115,7 +113,6 @@ class NetworkGameServer(
     /* ================= LOBBY ================= */
 
     private fun handleJoin(client: ClientConnection, message: NetworkMessage) {
-
         val name = message.playerName ?: "Player"
         lobby.addPlayer(client.playerId, name)
         broadcastLobby()
@@ -137,9 +134,11 @@ class NetworkGameServer(
         // 🔥 نكمل اللاعبين بـ AI
         fillWithAIPlayers()
 
+        // 🔥 تحديث اللوبي بعد إضافة AI
+        broadcastLobby()
+
         if (!lobby.startGame()) return
 
-        // 🔥 نبني اللاعبين داخل الـ Engine حسب اللوبي
         buildEnginePlayersFromLobby()
 
         gameEngine.startGame()
