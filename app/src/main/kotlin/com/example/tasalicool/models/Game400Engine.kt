@@ -14,6 +14,12 @@ class Game400Engine(
     val onGameUpdated: (() -> Unit)? = null
 ) : Serializable {
 
+    /* ================= NETWORK ROLE ================= */
+
+    var isNetworkClient = false
+
+    /* ================= CORE ================= */
+
     private val deck = Deck()
 
     var phase =
@@ -40,13 +46,10 @@ class Game400Engine(
     var winner: Player? = null
         private set
 
-    init {
-        // سيتم تشغيل اللعبة من الـ UI عبر startGame()
-    }
-
     /* ================= START GAME ================= */
 
     fun startGame() {
+        if (isNetworkClient) return
         if (gameMode != GameMode.WIFI_MULTIPLAYER) {
             startNewRound()
         }
@@ -55,6 +58,8 @@ class Game400Engine(
     /* ================= ROUND ================= */
 
     fun startNewRound() {
+
+        if (isNetworkClient) return
 
         deck.reset()
         AdvancedAI.resetMemory()
@@ -82,6 +87,7 @@ class Game400Engine(
 
     fun placeBid(player: Player, bid: Int): Boolean {
 
+        if (isNetworkClient) return false
         if (phase != GamePhase.BIDDING) return false
         if (player != getCurrentPlayer()) return false
 
@@ -109,6 +115,9 @@ class Game400Engine(
     }
 
     private fun processAIBidding() {
+
+        if (isNetworkClient) return
+
         while (phase == GamePhase.BIDDING &&
             getCurrentPlayer().type == PlayerType.AI
         ) {
@@ -130,6 +139,7 @@ class Game400Engine(
 
     fun playCard(player: Player, card: Card): Boolean {
 
+        if (isNetworkClient) return false
         if (phase != GamePhase.PLAYING) return false
         if (player != getCurrentPlayer()) return false
         if (!isValidPlay(player, card)) return false
@@ -154,6 +164,8 @@ class Game400Engine(
 
     private fun processAITurns() {
 
+        if (isNetworkClient) return
+
         while (phase == GamePhase.PLAYING &&
             getCurrentPlayer().type == PlayerType.AI
         ) {
@@ -176,6 +188,7 @@ class Game400Engine(
 
     fun clearTrickAfterDelay() {
 
+        if (isNetworkClient) return
         if (currentTrick.isEmpty()) return
 
         currentTrick.clear()
@@ -188,55 +201,25 @@ class Game400Engine(
         processAITurns()
     }
 
-    /* ================= TRICK LOGIC ================= */
-
-    private fun determineTrickWinner(): Player {
-
-        val leadSuit = currentTrick.first().second.suit
-
-        val trumpCards =
-            currentTrick.filter { it.second.suit == Suit.HEARTS }
-
-        return if (trumpCards.isNotEmpty()) {
-            trumpCards.maxBy { it.second.rank.value }.first
-        } else {
-            currentTrick
-                .filter { it.second.suit == leadSuit }
-                .maxBy { it.second.rank.value }
-                .first
-        }
-    }
-
-    private fun isValidPlay(player: Player, card: Card): Boolean {
-
-        if (currentTrick.isEmpty()) return true
-
-        val leadSuit = currentTrick.first().second.suit
-        val hasSuit = player.hand.any { it.suit == leadSuit }
-
-        return if (hasSuit) card.suit == leadSuit else true
-    }
-
     /* ================= SCORING ================= */
 
     private fun finishRound() {
 
         players.forEach { it.applyRoundScore() }
 
-        val team1Score = players
-            .filter { it.teamId == 1 }
-            .sumOf { it.score }
+        val team1Score =
+            players.filter { it.teamId == 1 }.sumOf { it.score }
 
-        val team2Score = players
-            .filter { it.teamId == 2 }
-            .sumOf { it.score }
+        val team2Score =
+            players.filter { it.teamId == 2 }.sumOf { it.score }
 
         if (team1Score >= 41 || team2Score >= 41) {
 
             val winningTeamId =
                 if (team1Score >= 41) 1 else 2
 
-            winner = players.first { it.teamId == winningTeamId }
+            winner =
+                players.first { it.teamId == winningTeamId }
 
             phase = GamePhase.GAME_OVER
             onGameUpdated?.invoke()
@@ -252,18 +235,9 @@ class Game400Engine(
     fun getCurrentPlayer(): Player =
         players[currentPlayerIndex]
 
-    fun isAITurn(): Boolean =
-        phase == GamePhase.PLAYING &&
-                getCurrentPlayer().type == PlayerType.AI
-
     private fun nextPlayer() {
         currentPlayerIndex =
             (currentPlayerIndex + 1) % players.size
-    }
-
-    private fun getPartner(player: Player): Player {
-        val index = players.indexOf(player)
-        return players[(index + 2) % players.size]
     }
 
     companion object {
