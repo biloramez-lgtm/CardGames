@@ -79,14 +79,20 @@ class NetworkGameServer(
                     when (message.action) {
 
                         GameAction.JOIN -> handleJoin(client, message)
+
                         GameAction.READY -> {
                             lobby.setReady(client.playerId, true)
                             broadcastLobby()
                         }
+
                         GameAction.START_GAME -> handleStartGame(client)
+
                         GameAction.PLAY_CARD -> handlePlayCard(client, message)
+
                         GameAction.REQUEST_SYNC -> sendFullStateTo(client)
+
                         GameAction.LEAVE -> removeClient(client)
+
                         else -> {}
                     }
                 }
@@ -95,6 +101,31 @@ class NetworkGameServer(
                 removeClient(client)
             }
         }
+    }
+
+    /* ================= JOIN ================= */
+
+    private fun handleJoin(
+        client: ClientConnection,
+        message: NetworkMessage
+    ) {
+
+        val name = message.playerName ?: "Player"
+
+        val lobbyPlayer = lobby.addPlayer(client.playerId, name)
+
+        if (lobbyPlayer == null) {
+            sendToClient(
+                client,
+                NetworkMessage.createError(
+                    client.playerId,
+                    "Game already started. Waiting next round."
+                )
+            )
+            return
+        }
+
+        broadcastLobby()
     }
 
     /* ================= START GAME ================= */
