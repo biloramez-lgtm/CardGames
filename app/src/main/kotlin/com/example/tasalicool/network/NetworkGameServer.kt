@@ -16,9 +16,13 @@ class NetworkGameServer(
     private val gameEngine: Game400Engine
 ) {
 
+    /* ================= CALLBACKS ================= */
+
     private var onClientConnected: ((String) -> Unit)? = null
     private var onClientDisconnected: ((String) -> Unit)? = null
     private var onGameUpdated: (() -> Unit)? = null
+
+    /* ================= NETWORK ================= */
 
     private var serverSocket: ServerSocket? = null
     private val clients = CopyOnWriteArrayList<ClientConnection>()
@@ -26,8 +30,14 @@ class NetworkGameServer(
     private val isRunning = AtomicBoolean(false)
     private val playerCounter = AtomicInteger(0)
 
+    /* ================= GAME ================= */
+
     private val lobby = LobbyManager()
     private val networkPlayerMap = mutableMapOf<String, Player>()
+
+    /* ========================================================= */
+    /* ======================= START SERVER ==================== */
+    /* ========================================================= */
 
     fun startServer(
         onClientConnected: ((String) -> Unit)? = null,
@@ -49,19 +59,26 @@ class NetworkGameServer(
                 while (isActive && isRunning.get()) {
 
                     val socket = serverSocket?.accept() ?: continue
+                    socket.tcpNoDelay = true
+
                     val networkId = "P${playerCounter.incrementAndGet()}"
-
                     val client = ClientConnection(socket, networkId)
-                    clients.add(client)
 
-                    this@NetworkGameServer.onClientConnected?.invoke(networkId)
+                    clients.add(client)
+                    onClientConnected?.invoke(networkId)
 
                     listenToClient(client)
                 }
 
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                stopServer()
+            }
         }
     }
+
+    /* ========================================================= */
+    /* ====================== LISTEN CLIENT ==================== */
+    /* ========================================================= */
 
     private fun listenToClient(client: ClientConnection) {
 
@@ -75,18 +92,10 @@ class NetworkGameServer(
                     when (message.action) {
 
                         GameAction.JOIN -> handleJoin(client, message)
-
-                        GameAction.READY -> {
-                            lobby.setReady(client.playerId, true)
-                            broadcastLobby()
-                        }
-
+                        GameAction.READY -> handleReady(client)
                         GameAction.START_GAME -> handleStartGame(client)
-
                         GameAction.PLAY_CARD -> handlePlayCard(client, message)
-
                         GameAction.REQUEST_SYNC -> sendFullStateTo(client)
-
                         GameAction.LEAVE -> removeClient(client)
 
                         else -> {}
@@ -98,6 +107,10 @@ class NetworkGameServer(
             }
         }
     }
+
+    /* ========================================================= */
+    /* ======================== LOBBY ========================== */
+    /* ========================================================= */
 
     private fun handleJoin(
         client: ClientConnection,
@@ -113,7 +126,7 @@ class NetworkGameServer(
                 client,
                 NetworkMessage.createError(
                     client.playerId,
-                    "Game already started. Waiting next round."
+                    "Game already started."
                 )
             )
             return
@@ -122,18 +135,45 @@ class NetworkGameServer(
         broadcastLobby()
     }
 
+    private fun handleReady(client: ClientConnection) {
+        lobby.setReady(client.playerId, true)
+        broadcastLobby()
+    }
+
+    /* ========================================================= */
+    /* ====================== START GAME ======================= */
+    /* ========================================================= */
+
     private fun handleStartGame(client: ClientConnection) {
 
         val host = lobby.getHost() ?: return
+
+        // فقط الهوست يقدر يبدأ
         if (host.networkId != client.playerId) return
+
+        // تأكد أن الكل Ready
+        if (!lobby.canStartGame()) return
+
         if (!lobby.startGame()) return
 
-        // ✅ التعديل هنا
         gameEngine.startGame()
-
         mapNetworkPlayersToEngine()
+
+        broadcastStartGame()
         broadcastFullState()
     }
+
+    private fun broadcastStartGame() {
+        val message = NetworkMessage(
+            action = GameAction.START_GAME,
+            playerId = "SERVER"
+        )
+        broadcast(message)
+    }
+
+    /* ========================================================= */
+    /* ======================= GAME LOGIC ====================== */
+    /* ========================================================= */
 
     private fun mapNetworkPlayersToEngine() {
 
@@ -179,6 +219,10 @@ class NetworkGameServer(
         }
     }
 
+    /* ========================================================= */
+    /* ======================= BROADCAST ======================= */
+    /* ========================================================= */
+
     private fun broadcastFullState() {
 
         val stateJson =
@@ -191,28 +235,8 @@ class NetworkGameServer(
                 trick = gameEngine.trickNumber
             )
 
-        clients.forEach {
-            sendToClient(it, message)
-        }
-
+        broadcast(message)
         onGameUpdated?.invoke()
-    }
-
-    private fun sendFullStateTo(client: ClientConnection) {
-        broadcastFullState()
-    }
-
-    private fun removeClient(client: ClientConnection) {
-
-        clients.remove(client)
-        lobby.removePlayer(client.playerId)
-        networkPlayerMap.remove(client.playerId)
-
-        onClientDisconnected?.invoke(client.playerId)
-
-        try { client.socket.close() } catch (_: Exception) {}
-
-        broadcastLobby()
     }
 
     private fun broadcastLobby() {
@@ -225,9 +249,15 @@ class NetworkGameServer(
                 lobbyJson = lobbyJson
             )
 
-        clients.forEach {
-            sendToClient(it, message)
-        }
+        broadcast(message)
+    }
+
+    private fun broadcast(message: NetworkMessage) {
+        clients.forEach { sendToClient(it, message) }
+    }
+
+    private fun sendFullStateTo(client: ClientConnection) {
+        broadcastFullState()
     }
 
     private fun sendToClient(
@@ -238,21 +268,50 @@ class NetworkGameServer(
             val json = NetworkMessage.toJson(message)
             client.output.writeUTF(json)
             client.output.flush()
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            removeClient(client)
+        }
     }
+
+    /* ========================================================= */
+    /* ======================= DISCONNECT ====================== */
+    /* ========================================================= */
+
+    private fun removeClient(client: ClientConnection) {
+
+        clients.remove(client)
+        lobby.removePlayer(client.playerId)
+        networkPlayerMap.remove(client.playerId)
+
+        try { client.socket.close() } catch (_: Exception) {}
+
+        onClientDisconnected?.invoke(client.playerId)
+
+        broadcastLobby()
+    }
+
+    /* ========================================================= */
+    /* ======================= STOP SERVER ===================== */
+    /* ========================================================= */
 
     fun stopServer() {
 
         isRunning.set(false)
-        scope.cancel()
+
+        try { serverSocket?.close() } catch (_: Exception) {}
 
         clients.forEach {
             try { it.socket.close() } catch (_: Exception) {}
         }
 
-        try { serverSocket?.close() } catch (_: Exception) {}
+        clients.clear()
+        scope.cancel()
     }
 }
+
+/* ========================================================= */
+/* ================= CLIENT CONNECTION ===================== */
+/* ========================================================= */
 
 data class ClientConnection(
     val socket: Socket,
