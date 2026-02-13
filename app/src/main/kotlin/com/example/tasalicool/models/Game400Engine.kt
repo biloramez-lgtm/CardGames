@@ -14,11 +14,7 @@ class Game400Engine(
     val onGameUpdated: (() -> Unit)? = null
 ) : Serializable {
 
-    /* ================= NETWORK ROLE ================= */
-
     var isNetworkClient = false
-
-    /* ================= CORE ================= */
 
     private val deck = Deck()
 
@@ -46,7 +42,7 @@ class Game400Engine(
     var winner: Player? = null
         private set
 
-    /* ================= START GAME ================= */
+    /* ================= START ================= */
 
     fun startGame() {
         if (isNetworkClient) return
@@ -55,10 +51,7 @@ class Game400Engine(
         }
     }
 
-    /* ================= ROUND ================= */
-
     fun startNewRound() {
-
         if (isNetworkClient) return
 
         deck.reset()
@@ -115,7 +108,6 @@ class Game400Engine(
     }
 
     private fun processAIBidding() {
-
         if (isNetworkClient) return
 
         while (phase == GamePhase.BIDDING &&
@@ -162,19 +154,6 @@ class Game400Engine(
         return true
     }
 
-    private fun processAITurns() {
-
-        if (isNetworkClient) return
-
-        while (phase == GamePhase.PLAYING &&
-            getCurrentPlayer().type == PlayerType.AI
-        ) {
-            val ai = getCurrentPlayer()
-            val card = AdvancedAI.chooseCard(ai, this)
-            playCard(ai, card)
-        }
-    }
-
     private fun finishTrick() {
 
         val trickWinner = determineTrickWinner()
@@ -199,6 +178,36 @@ class Game400Engine(
 
         onGameUpdated?.invoke()
         processAITurns()
+    }
+
+    /* ================= RULES ================= */
+
+    private fun isValidPlay(player: Player, card: Card): Boolean {
+
+        if (currentTrick.isEmpty()) return true
+
+        val leadSuit = currentTrick.first().second.suit
+
+        val hasSameSuit =
+            player.hand.any { it.suit == leadSuit }
+
+        return if (hasSameSuit) {
+            card.suit == leadSuit
+        } else {
+            true
+        }
+    }
+
+    private fun determineTrickWinner(): Player {
+
+        val leadSuit = currentTrick.first().second.suit
+
+        val winningPlay =
+            currentTrick
+                .filter { it.second.suit == leadSuit }
+                .maxByOrNull { it.second.rankValue }!!
+
+        return winningPlay.first
     }
 
     /* ================= SCORING ================= */
