@@ -22,6 +22,13 @@ class NetworkGameServer(
     private var onClientDisconnected: ((String) -> Unit)? = null
     private var onGameUpdated: (() -> Unit)? = null
 
+    /* 🔥 جديد: Lobby UI Listener */
+    private var lobbyUpdateListener: ((String) -> Unit)? = null
+
+    fun setLobbyUpdateListener(listener: (String) -> Unit) {
+        lobbyUpdateListener = listener
+    }
+
     /* ================= NETWORK ================= */
 
     private var serverSocket: ServerSocket? = null
@@ -131,7 +138,6 @@ class NetworkGameServer(
     ) {
 
         val name = message.playerName ?: "Player"
-
         val lobbyPlayer = lobby.addPlayer(client.playerId, name)
         if (lobbyPlayer == null) return
 
@@ -150,18 +156,13 @@ class NetworkGameServer(
     private fun handleStartGame(client: ClientConnection) {
 
         val host = lobby.getHost() ?: return
-
-        // فقط الهوست يقدر يبدأ
         if (host.networkId != client.playerId) return
 
-        // تأكد أن كل البشر Ready
         if (!lobby.areAllHumansReady()) return
 
-        // كمّل AI لحد 4
         fillWithAIPlayers()
 
         if (lobby.getPlayers().size != MAX_PLAYERS) return
-
         if (!lobby.startGame()) return
 
         gameEngine.startGame()
@@ -169,6 +170,16 @@ class NetworkGameServer(
 
         broadcastStartGame()
         broadcastFullState()
+    }
+
+    /* 🔥 جديد: استدعاء من Host UI */
+    fun requestStartFromHost() {
+
+        val host = lobby.getHost() ?: return
+        val hostClient =
+            clients.firstOrNull { it.playerId == host.networkId } ?: return
+
+        handleStartGame(hostClient)
     }
 
     /* ========================================================= */
@@ -181,10 +192,7 @@ class NetworkGameServer(
         val missing = MAX_PLAYERS - currentSize
 
         repeat(missing) { index ->
-            lobby.addPlayer(
-                "AI_${index + 1}",
-                "AI_${index + 1}"
-            )
+            lobby.addAIPlayer("AI_${index + 1}")
         }
     }
 
@@ -210,8 +218,7 @@ class NetworkGameServer(
             gameEngine.players.filter { it.type == PlayerType.HUMAN }
 
         lobby.getPlayers().forEachIndexed { index, lobbyPlayer ->
-
-            if (index < humanPlayers.size) {
+            if (!lobbyPlayer.isAI && index < humanPlayers.size) {
                 networkPlayerMap[lobbyPlayer.networkId] =
                     humanPlayers[index]
             }
@@ -282,6 +289,9 @@ class NetworkGameServer(
             )
 
         broadcast(message)
+
+        /* 🔥 تحديث واجهة الهوست */
+        lobbyUpdateListener?.invoke(lobbyJson)
     }
 
     private fun broadcast(message: NetworkMessage) {
