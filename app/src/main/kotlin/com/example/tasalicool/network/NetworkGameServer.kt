@@ -21,8 +21,6 @@ class NetworkGameServer(
     private var onClientConnected: ((String) -> Unit)? = null
     private var onClientDisconnected: ((String) -> Unit)? = null
     private var onGameUpdated: (() -> Unit)? = null
-
-    /* 🔥 جديد: Lobby UI Listener */
     private var lobbyUpdateListener: ((String) -> Unit)? = null
 
     fun setLobbyUpdateListener(listener: (String) -> Unit) {
@@ -65,6 +63,9 @@ class NetworkGameServer(
 
                 serverSocket = ServerSocket(port)
                 isRunning.set(true)
+
+                // 🔥 السيرفر هو المصدر الوحيد للحقيقة
+                gameEngine.isNetworkClient = false
 
                 while (isActive && isRunning.get()) {
 
@@ -157,7 +158,6 @@ class NetworkGameServer(
 
         val host = lobby.getHost() ?: return
         if (host.networkId != client.playerId) return
-
         if (!lobby.areAllHumansReady()) return
 
         fillWithAIPlayers()
@@ -172,9 +172,7 @@ class NetworkGameServer(
         broadcastFullState()
     }
 
-    /* 🔥 جديد: استدعاء من Host UI */
     fun requestStartFromHost() {
-
         val host = lobby.getHost() ?: return
         val hostClient =
             clients.firstOrNull { it.playerId == host.networkId } ?: return
@@ -196,18 +194,8 @@ class NetworkGameServer(
         }
     }
 
-    private fun broadcastStartGame() {
-
-        val message = NetworkMessage(
-            action = GameAction.START_GAME,
-            playerId = "SERVER"
-        )
-
-        broadcast(message)
-    }
-
     /* ========================================================= */
-    /* ======================= GAME LOGIC ====================== */
+    /* ======================== GAME LOGIC ===================== */
     /* ========================================================= */
 
     private fun mapNetworkPlayersToEngine() {
@@ -238,7 +226,9 @@ class NetworkGameServer(
         val card = Card.fromString(message.payload ?: return) ?: return
         if (!gameEngine.playCard(player, card)) return
 
+        // 🔥 السيرفر فقط يشغل AI
         processAITurns()
+
         broadcastFullState()
     }
 
@@ -259,19 +249,28 @@ class NetworkGameServer(
     /* ======================= BROADCAST ======================= */
     /* ========================================================= */
 
+    private fun broadcastStartGame() {
+
+        broadcast(
+            NetworkMessage(
+                action = GameAction.START_GAME,
+                playerId = "SERVER"
+            )
+        )
+    }
+
     private fun broadcastFullState() {
 
         val stateJson =
             NetworkMessage.getGson().toJson(gameEngine)
 
-        val message =
+        broadcast(
             NetworkMessage.createStateSync(
                 hostId = "SERVER",
                 stateJson = stateJson,
                 trick = gameEngine.trickNumber
             )
-
-        broadcast(message)
+        )
 
         CoroutineScope(Dispatchers.Main).launch {
             onGameUpdated?.invoke()
@@ -282,15 +281,13 @@ class NetworkGameServer(
 
         val lobbyJson = lobby.toJson()
 
-        val message =
+        broadcast(
             NetworkMessage.createLobbyState(
                 hostId = "SERVER",
                 lobbyJson = lobbyJson
             )
+        )
 
-        broadcast(message)
-
-        /* 🔥 تحديث واجهة الهوست */
         lobbyUpdateListener?.invoke(lobbyJson)
     }
 
@@ -299,6 +296,7 @@ class NetworkGameServer(
     }
 
     private fun sendFullStateTo(client: ClientConnection) {
+
         sendToClient(
             client,
             NetworkMessage.createStateSync(
@@ -362,8 +360,6 @@ class NetworkGameServer(
     }
 }
 
-/* ========================================================= */
-/* ================= CLIENT CONNECTION ===================== */
 /* ========================================================= */
 
 data class ClientConnection(
